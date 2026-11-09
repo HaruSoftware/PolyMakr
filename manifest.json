@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "PolyMakr",
+  "version": "0.1.0",
+  "description": "Monitore preços do Polymarket e configure alertas por condição.",
+  "permissions": [
+    "storage",
+    "notifications",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://polymarket.com/*",
+    "https://*.polymarket.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Abrir PolyMakr",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://polymarket.com/*",
+        "https://*.polymarket.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
