@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const HOST_ID = "polymakr-extension-root";
   const RULES_KEY = "polymakr.rules";
   const host = document.createElement("div");
@@ -10,16 +10,13 @@
     <style>
       :host { all: initial; }
       * { box-sizing: border-box; }
-      .launcher {
-        position: fixed; z-index: 2147483646; right: 20px; bottom: 20px;
-        width: 52px; height: 52px; border: 0; border-radius: 50%;
-        background: #087c3b; color: #fff; cursor: pointer;
-        box-shadow: 0 6px 24px #0003; font: 800 17px Inter, system-ui, sans-serif;
-      }
+      .backdrop { position: fixed; z-index: 2147483646; inset: 0; display: none;
+        background: rgba(15, 22, 18, .5); backdrop-filter: blur(3px); }
+      .backdrop.open { display: block; }
       .panel {
-        position: fixed; z-index: 2147483647; right: 20px; bottom: 82px;
-        display: none; width: min(390px, calc(100vw - 28px)); max-height: min(720px, calc(100vh - 110px));
-        overflow: auto; border: 1px solid #dfe6e0; border-radius: 16px;
+        position: fixed; z-index: 2147483647; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        display: none; width: min(560px, calc(100vw - 28px)); max-height: min(760px, calc(100vh - 32px));
+        overflow: hidden; border: 1px solid #dfe6e0; border-radius: 18px;
         background: #fff; color: #18211b; box-shadow: 0 12px 40px #0003;
         font: 13px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
@@ -29,20 +26,12 @@
       .top strong { font-size: 15px; }
       .top small { display: block; color: #78827b; font-size: 11px; }
       .close { border: 0; background: transparent; color: #59645d; cursor: pointer; font-size: 20px; }
-      .section { padding: 13px 16px; border-bottom: 1px solid #edf0ed; }
-      .section h2 { margin: 0 0 9px; font-size: 12px; }
-      .quotes { display: grid; gap: 7px; max-height: 150px; overflow: auto; }
-      .quote { display: flex; justify-content: space-between; gap: 10px; padding: 8px 9px;
-        border-radius: 9px; background: #f5f7f5; }
-      .quote-label { display: flex; min-width: 0; align-items: center; gap: 6px; }
-      .market-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .outcome-tag { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px;
-        font-size: 10px; font-weight: 750; }
-      .outcome-tag.up { background: #e4f5ea; color: #087c3b; }
-      .outcome-tag.down { background: #fde9e8; color: #c4312b; }
-      .price { flex: 0 0 auto; font-weight: 750; }
-      .price.up, .outcome-up { color: #087c3b; }
-      .price.down, .outcome-down { color: #c4312b; }
+      .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
+      .tab { padding: 8px; border: 0; border-radius: 8px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
+      .tab[aria-selected="true"] { background: #e8f4ec; color: #087c3b; }
+      .view { display: none; max-height: min(620px, calc(100vh - 150px)); overflow: auto; padding: 18px; }
+      .view.active { display: block; }
+      .view h2 { margin: 0 0 14px; font-size: 15px; }
       .empty { color: #758078; font-size: 12px; }
       form { display: grid; gap: 9px; }
       label { display: grid; gap: 4px; color: #59645d; font-size: 11px; }
@@ -51,36 +40,55 @@
         border-radius: 8px; background: #fff; color: #17211b; font: inherit; font-size: 12px;
       }
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-      .primary { padding: 9px; border: 0; border-radius: 8px; background: #087c3b;
-        color: #fff; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
-      .primary:hover { background: #056b31; }
+      .market-outcomes { display: grid; gap: 9px; max-height: 180px; overflow: auto; }
+      .market-group { display: grid; gap: 5px; }
+      .market-title { overflow: hidden; color: #59645d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+      .outcome-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .outcome-choice { min-height: 42px; padding: 8px; border: 1px solid #dfe4e0; border-radius: 9px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+      .outcome-choice.up, .outcome-choice.down { border-color: #dfe4e0; background: #fff; color: #59645d; }
+      .outcome-choice.up[aria-pressed="true"] { border-color: #07833b; background: #07833b; color: #fff; }
+      .outcome-choice.down[aria-pressed="true"] { border-color: #c4312b; background: #c4312b; color: #fff; }
+      .outcome-choice:disabled { cursor: default; opacity: .65; }
+      .save-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .save-action { display: flex; min-height: 42px; align-items: center; justify-content: center; gap: 7px; padding: 9px; border: 0; border-radius: 8px; color: #fff; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+      .save-action.save { background: #087c3b; }
+      .save-action.save:hover { background: #056b31; }
+      .save-action.favorite { background: #e58b16; }
+      .save-action.favorite:hover { background: #cb7610; }
+      .star { font-size: 16px; line-height: 1; }
       .hint { margin: 0; color: #78827b; font-size: 10px; line-height: 1.45; }
-      .warning { padding: 9px; border-radius: 8px; background: #fff5e6; color: #7b4a00; font-size: 11px; }
       .rules { display: grid; gap: 8px; }
       .rule { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px;
         padding: 9px; border: 1px solid #e6ebe7; border-radius: 9px; }
       .rule-title { font-weight: 700; }
       .rule-detail { color: #657168; font-size: 11px; }
       .rule-mode { color: #087c3b; font-size: 10px; font-weight: 700; }
-      .delete { grid-row: span 2; align-self: center; border: 0; background: transparent;
-        color: #a33b2e; cursor: pointer; font: inherit; font-size: 11px; }
+      .rule-actions { grid-row: span 3; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
+      .rule-actions button { padding: 2px 0; border: 0; background: transparent; cursor: pointer; font: inherit; font-size: 11px; }
+      .favorite, .use-template { color: #8a6413; }
+      .edit { color: #087c3b; }
+      .delete { color: #a33b2e; }
       .status { min-height: 15px; margin: 0; color: #a33b2e; font-size: 11px; }
-      .mode-note { color: #7b4a00; }
+      .status.success { color: #087c3b; }
     </style>
-    <button class="launcher" type="button" aria-label="Abrir PolyMakr">PM</button>
-    <section class="panel" aria-label="Painel PolyMakr">
+    <div class="backdrop"></div>
+    <section class="panel" role="dialog" aria-modal="true" aria-label="Painel PolyMakr">
       <header class="top">
-        <div><strong>PolyMakr</strong><small>Monitor de preços</small></div>
+        <div><strong>PolyMakr</strong><small>Regras de preço</small></div>
         <button class="close" type="button" aria-label="Fechar painel">×</button>
       </header>
-      <div class="section">
-        <h2>Preços encontrados na página</h2>
-        <div class="quotes"></div>
-      </div>
-      <div class="section">
-        <h2>Nova regra</h2>
+      <nav class="tabs" role="tablist" aria-label="Seções do PolyMakr">
+        <button class="tab" type="button" role="tab" data-view="create" aria-selected="true">Criar</button>
+        <button class="tab" type="button" role="tab" data-view="rules" aria-selected="false">Regras</button>
+        <button class="tab" type="button" role="tab" data-view="favorites" aria-selected="false">Favoritos</button>
+      </nav>
+      <p class="status" role="status" aria-live="polite"></p>
+      <div class="view active" data-panel="create" role="tabpanel">
+        <h2 class="form-heading">Criar regra</h2>
         <form>
-          <label>Mercado e resultado<select name="quote" required></select></label>
+          <label>Mercado e resultado</label>
+          <div class="market-outcomes" role="group" aria-label="Mercado e resultado"></div>
+          <select name="quote" aria-hidden="true" tabindex="-1" hidden></select>
           <div class="row">
             <label>Ação<select name="side"><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
             <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
@@ -98,25 +106,35 @@
             <option value="confirm">Avisar e pedir confirmação</option>
             <option value="auto_limit">Automatizar ordem limite</option>
           </select></label>
-          <p class="warning mode-note">Também é possível configurar a automação na aba Auto, junto de Buy e Sell no cartão de negociação.</p>
-          <button class="primary" type="submit">Salvar regra</button>
-          <p class="status" role="status"></p>
+          <div class="save-actions">
+            <button class="save-action save" type="submit" name="saveAction" value="save">Salvar regra</button>
+            <button class="save-action favorite" type="submit" name="saveAction" value="favorite" aria-label="Salvar e favoritar regra"><span class="star" aria-hidden="true">★</span> Favoritar</button>
+          </div>
+          <button class="cancel-edit" type="button" hidden>Cancelar edição</button>
         </form>
       </div>
-      <div class="section">
-        <h2>Regras salvas</h2>
+      <div class="view" data-panel="rules" role="tabpanel" hidden>
+        <h2>Regras criadas</h2>
         <div class="rules"></div>
       </div>
-      <div class="section"><p class="hint">Os preços são lidos dos botões visíveis do Polymarket. Ao recarregar ou mudar de mercado, confira se a regra continua associada ao resultado certo.</p></div>
+      <div class="view" data-panel="favorites" role="tabpanel" hidden>
+        <h2>Regras favoritas</h2>
+        <div class="favorites"></div>
+      </div>
     </section>
   `;
 
   const panel = shadow.querySelector(".panel");
-  const quotesElement = shadow.querySelector(".quotes");
+  const backdrop = shadow.querySelector(".backdrop");
   const quoteSelect = shadow.querySelector('[name="quote"]');
+  const quoteOptions = shadow.querySelector(".market-outcomes");
   const rulesElement = shadow.querySelector(".rules");
+  const favoritesElement = shadow.querySelector(".favorites");
   const form = shadow.querySelector("form");
   const statusElement = shadow.querySelector(".status");
+  const formSubmitButton = form.querySelector('[value="save"]');
+  const formHeading = shadow.querySelector(".form-heading");
+  const cancelEditButton = shadow.querySelector(".cancel-edit");
   const tradingSideGroups = new WeakSet();
   let rules = [];
   let quotes = [];
@@ -129,13 +147,25 @@
   let autoLayoutHeader = null;
   const autoHiddenElements = new Map();
   const previousPrices = new Map();
-  const firedRules = new Set();
+  let queueWorkerRunning = false;
+  let rulesWrite = Promise.resolve();
   let scanTimer;
   let mutationScanScheduled = false;
-  let tradingPanelRect = null;
 
-  shadow.querySelector(".launcher").addEventListener("click", togglePanel);
   shadow.querySelector(".close").addEventListener("click", togglePanel);
+  backdrop.addEventListener("click", togglePanel);
+  shadow.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => selectView(tab.dataset.view));
+  });
+  cancelEditButton.addEventListener("click", () => {
+    resetRuleForm();
+    selectView("rules");
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && panel.classList.contains("open")) {
+      togglePanel();
+    }
+  });
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === "POLYMAKR_TOGGLE_PANEL") {
@@ -143,32 +173,54 @@
     }
   });
 
-  chrome.storage.local.get({ [RULES_KEY]: [] }, (stored) => {
-    rules = stored[RULES_KEY];
+  chrome.storage.local.get({ [RULES_KEY]: [] }).then(async (stored) => {
+    rules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
+    let interrupted = false;
+    for (const rule of rules) {
+      if (rule.executionStatus === "processing") {
+        rule.executionStatus = "failed";
+        rule.executionMessage = "Execução interrompida; confira o Polymarket. A regra não será repetida automaticamente.";
+        interrupted = true;
+      }
+    }
     renderRules();
+    if (interrupted) {
+      try {
+        await persistRules();
+      } catch (error) {
+        statusElement.textContent = `Não foi possível salvar o estado de execução interrompida: ${error.message || error}`;
+      }
+    }
     scan();
+  }).catch((error) => {
+    statusElement.textContent = `Não foi possível carregar as regras: ${error.message || error}`;
   });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveRule(new FormData(form), statusElement, form, "notify");
+    await saveRule(new FormData(form, event.submitter), statusElement, form, "notify");
   });
 
   function togglePanel() {
     panel.classList.toggle("open");
+    backdrop.classList.toggle("open", panel.classList.contains("open"));
     if (panel.classList.contains("open")) {
       scan();
     }
-    positionWidgets();
   }
 
   async function saveRule(data, ruleStatus, ruleForm, defaultMode) {
-    const quote = quotes.find((item) => item.key === data.get("quote"));
+    const oldRule = editingRuleId && rules.find((item) => item.id === editingRuleId);
+    const selectedQuoteKey = data.get("quote");
+    const quote = quotes.find((item) => item.key === selectedQuoteKey)
+      || (oldRule?.quoteKey === selectedQuoteKey
+        ? { key: oldRule.quoteKey, market: oldRule.market, outcome: oldRule.outcome }
+        : null);
     const triggerCents = Number(data.get("triggerCents"));
     const orderLimitCents = Number(data.get("orderLimitCents"));
     const shares = Number(data.get("shares"));
-    const side = data.get("side")
-      || (normalizedText(lastNativeTradeSide) === "sell" ? "sell" : "buy");
+    const side = data.get("side");
+    const favorite = data.get("saveAction") === "favorite" || Boolean(oldRule?.favorite);
 
     if (!quote
       || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
@@ -179,39 +231,102 @@
       return;
     }
 
-    const rule = {
-      id: crypto.randomUUID(),
-      market: quote.market,
-      quoteKey: quote.key,
-      outcome: quote.outcome,
-      side,
-      trigger: data.get("trigger"),
-      triggerCents,
-      orderLimitCents,
-      shares,
-      expiration: data.get("expiration") || "never",
-      mode: data.get("mode") || defaultMode,
-      enabled: true
-    };
-
-    rules = [...rules, rule];
+    const rule = oldRule
+      ? {
+          ...oldRule,
+          market: quote.market,
+          quoteKey: quote.key,
+          outcome: quote.outcome,
+          side,
+          trigger: data.get("trigger"),
+          triggerCents,
+          orderLimitCents,
+          shares,
+          expiration: data.get("expiration") || "never",
+          mode: data.get("mode") || defaultMode,
+          favorite
+        }
+      : {
+          id: crypto.randomUUID(),
+          market: quote.market,
+          quoteKey: quote.key,
+          outcome: quote.outcome,
+          side,
+          trigger: data.get("trigger"),
+          triggerCents,
+          orderLimitCents,
+          shares,
+          expiration: data.get("expiration") || "never",
+          mode: data.get("mode") || defaultMode,
+          enabled: true,
+          favorite,
+          createdAt: Date.now()
+        };
+    if (oldRule) {
+      rules = rules.map((item) => item.id === oldRule.id ? rule : item);
+    } else {
+      rules = [...rules, rule];
+    }
     try {
-      await chrome.storage.local.set({ [RULES_KEY]: rules });
+      await persistRules();
     } catch (error) {
-      rules = rules.filter((item) => item.id !== rule.id);
+      if (oldRule) {
+        rules = rules.map((item) => item.id === oldRule.id ? oldRule : item);
+      } else {
+        rules = rules.filter((item) => item.id !== rule.id);
+      }
       ruleStatus.classList.remove("success");
       ruleStatus.textContent = `Não foi possível salvar a regra: ${error.message || error}`;
       return;
     }
 
     if (ruleForm) {
-      if (ruleForm === form) {
-        ruleForm.reset();
-      }
+      ruleForm.reset();
     }
+    editingRuleId = null;
+    updateRuleFormMode();
+    statusElement.classList.add("success");
     ruleStatus.classList.add("success");
-    ruleStatus.textContent = "Regra salva neste navegador.";
+    ruleStatus.textContent = oldRule
+      ? "Alterações salvas."
+      : favorite ? "Regra salva nos favoritos." : "Regra salva neste navegador.";
     renderRules();
+    renderQuotes();
+    if (oldRule) selectView("rules");
+  }
+
+  function persistRules() {
+    const snapshot = rules.map((rule) => ({ ...rule }));
+    const write = () => chrome.storage.local.set({ [RULES_KEY]: snapshot });
+    rulesWrite = rulesWrite.then(write, write);
+    return rulesWrite;
+  }
+
+  function selectView(viewName) {
+    shadow.querySelectorAll(".tab").forEach((tab) => {
+      tab.setAttribute("aria-selected", String(tab.dataset.view === viewName));
+    });
+    shadow.querySelectorAll(".view").forEach((view) => {
+      const active = view.dataset.panel === viewName;
+      view.classList.toggle("active", active);
+      view.hidden = !active;
+    });
+  }
+
+  function updateRuleFormMode() {
+    const editing = Boolean(editingRuleId);
+    formHeading.textContent = editing ? "Editar regra" : "Criar regra";
+    formSubmitButton.textContent = editing ? "Salvar alterações" : "Salvar regra";
+    cancelEditButton.hidden = !editing;
+  }
+
+  function resetRuleForm() {
+    editingRuleId = null;
+    form.reset();
+    statusElement.textContent = "";
+    statusElement.classList.remove("success");
+    updateRuleFormMode();
+    renderQuotes();
   }
 
   function syncAutoTradeTab() {
@@ -676,9 +791,6 @@
   }
 
   function scan() {
-    tradingPanelRect = findTradingPanel();
-    positionWidgets();
-
     const next = new Map();
     for (const button of document.querySelectorAll("button,[role='button']")) {
       const quote = parseQuoteButton(button);
@@ -701,12 +813,8 @@
     }
     quotes = [...next.values()];
     renderQuotes();
-    syncAutoTradeTab();
+    processRuleQueue();
     scheduleNextScan();
-  }
-
-  function findTradingPanel() {
-    return findTradingPanelElement()?.getBoundingClientRect() || null;
   }
 
   function isVisible(element) {
@@ -718,106 +826,119 @@
       && style.visibility !== "hidden";
   }
 
-  function positionWidgets() {
-    const launcher = shadow.querySelector(".launcher");
-    const gap = 12;
-
-    if (!tradingPanelRect) {
-      launcher.style.right = "20px";
-      launcher.style.top = "auto";
-      launcher.style.bottom = "20px";
-      panel.style.left = "auto";
-      panel.style.right = "20px";
-      panel.style.top = "auto";
-      panel.style.bottom = "82px";
-      return;
-    }
-
-    const launcherTop = Math.min(
-      Math.max(8, tradingPanelRect.top + 8),
-      Math.max(8, window.innerHeight - launcher.offsetHeight - 8)
-    );
-    const launcherRight = Math.max(8, window.innerWidth - tradingPanelRect.left + gap);
-    launcher.style.right = `${launcherRight}px`;
-    launcher.style.top = `${launcherTop}px`;
-    launcher.style.bottom = "auto";
-
-    if (!panel.classList.contains("open")) {
-      return;
-    }
-
-    const panelWidth = panel.getBoundingClientRect().width || 390;
-    const panelHeight = panel.getBoundingClientRect().height || 600;
-    const leftOfCard = tradingPanelRect.left - panelWidth - gap;
-    if (leftOfCard >= 8) {
-      panel.style.left = `${leftOfCard}px`;
-      panel.style.right = "auto";
-    } else {
-      panel.style.left = "auto";
-      panel.style.right = `${Math.max(8, window.innerWidth - tradingPanelRect.right + gap)}px`;
-    }
-
-    const top = Math.min(
-      Math.max(8, tradingPanelRect.top),
-      Math.max(8, window.innerHeight - panelHeight - 8)
-    );
-    panel.style.top = `${top}px`;
-    panel.style.bottom = "auto";
-  }
-
   function scheduleNextScan() {
     window.clearTimeout(scanTimer);
     scanTimer = window.setTimeout(scan, 1000);
   }
 
   function checkRules(quote, previous) {
+    const queued = [];
     for (const rule of rules) {
-      if (!rule.enabled || rule.executionStatus || rule.quoteKey !== quote.key) {
-        continue;
-      }
+      if (!rule.enabled || rule.executionStatus || rule.quoteKey !== quote.key) continue;
       const limit = Number(rule.triggerCents ?? rule.limitCents);
-      const isCrossed = rule.trigger === "rises"
+      const crossed = rule.trigger === "rises"
         ? previous < limit && quote.price >= limit
         : rule.trigger === "falls"
           ? previous > limit && quote.price <= limit
           : (previous < limit && quote.price >= limit) || (previous > limit && quote.price <= limit);
-      if (!isCrossed || firedRules.has(rule.id)) {
-        continue;
-      }
+      if (!crossed) continue;
+      rule.executionStatus = "queued";
+      rule.triggeredPrice = quote.price;
+      rule.executionMessage = "Aguardando execução na fila.";
+      queued.push(rule);
+    }
 
-      firedRules.add(rule.id);
-      const verb = rule.side === "buy" ? "Comprar" : "Vender";
-      const size = rule.shares === undefined
-        ? (rule.side === "buy" ? `US$ ${rule.amount}` : `${rule.amount} shares`)
-        : `${rule.shares} shares`;
-      const orderPrice = Number(rule.orderLimitCents ?? rule.limitCents);
-      const summary = `${verb} ${quote.outcome} em ${quote.market}: gatilho de ${limit}¢ atingido (preço observado ${quote.price}¢). Ordem limite configurada em ${orderPrice}¢, tamanho: ${size}. Expiração: Never.`;
-      if (rule.mode === "auto_limit") {
-        startAutomaticOrder(rule, quote, summary).catch((error) => {
-          recordAutomaticOrderFailure(rule, error);
-        });
-        continue;
-      }
-
-      const modeNotice = rule.mode === "confirm"
-        ? "Confirmação não conectada; somente aviso."
-        : "Somente alerta.";
-      sendRuleNotification(`${summary} ${modeNotice}`, verb);
+    if (queued.length) {
+      renderRules();
+      persistRules().catch((error) => {
+        for (const rule of queued) {
+          rule.executionStatus = "failed";
+          rule.executionMessage = `Não foi possível registrar a regra na fila; ela não foi executada: ${error.message || error}`;
+        }
+        statusElement.textContent = "Falha ao salvar o estado da fila. Nenhuma nova regra foi executada.";
+        renderRules();
+      });
     }
   }
 
-  async function startAutomaticOrder(rule, quote, summary) {
-    rule.executionStatus = "processing";
-    await chrome.storage.local.set({ [RULES_KEY]: rules });
-    renderRules();
+  async function processRuleQueue() {
+    if (queueWorkerRunning) return;
+    queueWorkerRunning = true;
+    try {
+      while (true) {
+        try {
+          await rulesWrite;
+        } catch (error) {
+          await persistRules().catch((retryError) => {
+            throw new Error(`Falha ao salvar regras: ${error.message || error}. Nova tentativa: ${retryError.message || retryError}.`);
+          });
+        }
+        const rule = rules.find((item) => item.executionStatus === "queued");
+        if (!rule) return;
+        const quote = quotes.find((item) => item.key === rule.quoteKey);
+        if (!quote) return;
 
-    await executeLimitOrder(rule, quote);
+        rule.executionStatus = "processing";
+        rule.executionMessage = "Execução em andamento.";
+        try {
+          await persistRules();
+        } catch (error) {
+          rule.executionStatus = "failed";
+          rule.executionMessage = `Não foi possível registrar o início da execução; a regra não foi executada: ${error.message || error}`;
+          statusElement.textContent = rule.executionMessage;
+          renderRules();
+          return;
+        }
+        renderRules();
 
-    rule.executionStatus = "clicked";
-    rule.executionMessage = "Clique em Trade enviado; confira o status da ordem no Polymarket.";
-    await chrome.storage.local.set({ [RULES_KEY]: rules });
-    renderRules();
-    sendRuleNotification(`${summary} Clique em Trade enviado. Confira a ordem no Polymarket e confirme a carteira se solicitado.`, rule.side === "buy" ? "Comprar" : "Vender");
+        const summary = ruleSummary(rule, quote);
+        try {
+          if (rule.mode === "auto_limit") {
+            await executeLimitOrder(rule, quote);
+            rule.executionMessage = "Concluída — clique em Trade enviado; confira o status da ordem no Polymarket.";
+          } else {
+            const notice = rule.mode === "confirm"
+              ? "Confirmação não conectada; somente aviso."
+              : "Somente alerta.";
+            rule.executionMessage = "Concluída — aviso enviado.";
+            sendRuleNotification(`${summary} ${notice}`, rule.side === "buy" ? "Comprar" : "Vender");
+          }
+          rule.executionStatus = "completed";
+          await persistRules();
+          renderRules();
+          if (rule.mode === "auto_limit") {
+            sendRuleNotification(`${summary} Clique em Trade enviado. Confira a ordem no Polymarket e confirme a carteira se solicitado.`, rule.side === "buy" ? "Comprar" : "Vender");
+          }
+        } catch (error) {
+          rule.executionStatus = "failed";
+          const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
+          rule.executionMessage = `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
+          try {
+            await persistRules();
+          } catch (storageError) {
+            rule.executionMessage += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
+          }
+          statusElement.textContent = rule.executionMessage;
+          renderRules();
+          sendRuleNotification(`A regra não foi concluída: ${rule.executionMessage}`, "Execução não concluída");
+        }
+      }
+    } catch (error) {
+      statusElement.textContent = `Não foi possível continuar a fila: ${error.message || error}`;
+    } finally {
+      queueWorkerRunning = false;
+    }
+  }
+
+  function ruleSummary(rule, quote) {
+    const verb = rule.side === "buy" ? "Comprar" : "Vender";
+    const trigger = Number(rule.triggerCents ?? rule.limitCents);
+    const orderPrice = Number(rule.orderLimitCents ?? rule.limitCents);
+    const size = rule.shares === undefined
+      ? (rule.side === "buy" ? `US$ ${rule.amount}` : `${rule.amount} shares`)
+      : `${rule.shares} shares`;
+    const observed = Number(rule.triggeredPrice ?? quote.price);
+    return `${verb} ${quote.outcome} em ${rule.market}: gatilho de ${trigger}¢ atingido (preço observado ${observed}¢). Ordem limite configurada em ${orderPrice}¢, tamanho: ${size}. Expiração: Never.`;
   }
 
   async function executeLimitOrder(rule, quote) {
@@ -1050,51 +1171,97 @@
   }
 
   function renderQuotes() {
-    const selectedQuoteKey = quoteSelect.value;
-    quotesElement.replaceChildren();
+    const selectedQuoteKey = quotes.some((quote) => quote.key === quoteSelect.value)
+      ? quoteSelect.value
+      : quotes.find((quote) => quote.outcome === "Up")?.key || quotes[0]?.key || "";
     quoteSelect.replaceChildren();
+    quoteOptions.replaceChildren();
 
-    if (quotes.length === 0) {
-      quotesElement.innerHTML = '<p class="empty">Nenhum botão Up/Down com preço em centavos foi detectado. Abra um mercado com esses botões.</p>';
+    const editingRule = editingRuleId && rules.find((rule) => rule.id === editingRuleId);
+    if (quotes.length === 0 && !editingRule) {
       quoteSelect.add(new Option("Aguardando preços…", ""));
+      quoteOptions.innerHTML = '<p class="empty">Nenhum resultado com preço foi detectado nesta página.</p>';
       return;
     }
 
+    const groupedQuotes = new Map();
     for (const quote of quotes) {
-      const row = document.createElement("div");
-      row.className = `quote ${quote.outcome.toLowerCase()}`;
-      const description = document.createElement("span");
-      description.className = "quote-label";
-      const market = document.createElement("span");
-      market.className = "market-name";
-      market.textContent = quote.market;
-      const outcome = document.createElement("span");
-      outcome.className = `outcome-tag ${quote.outcome.toLowerCase()}`;
-      outcome.textContent = quote.outcome;
-      description.append(market, outcome);
-      const price = document.createElement("span");
-      price.className = `price ${quote.outcome.toLowerCase()}`;
-      price.textContent = `${quote.price}¢`;
-      row.append(description, price);
-      quotesElement.append(row);
-      const option = new Option(`${quote.market} · ${quote.outcome} — ${quote.price}¢`, quote.key);
-      option.style.color = quote.outcome.toLowerCase() === "down" ? "#c4312b" : "#087c3b";
-      quoteSelect.add(option);
+      const marketKey = quote.key.slice(0, quote.key.lastIndexOf("|"));
+      if (!groupedQuotes.has(marketKey)) {
+        groupedQuotes.set(marketKey, { market: quote.market, outcomes: new Map() });
+      }
+      groupedQuotes.get(marketKey).outcomes.set(quote.outcome, quote);
+    }
+    if (editingRule && !quotes.some((quote) => quote.key === editingRule.quoteKey)) {
+      const marketKey = editingRule.quoteKey.slice(0, editingRule.quoteKey.lastIndexOf("|"));
+      if (!groupedQuotes.has(marketKey)) {
+        groupedQuotes.set(marketKey, { market: editingRule.market, outcomes: new Map() });
+      }
+      groupedQuotes.get(marketKey).outcomes.set(editingRule.outcome, {
+        key: editingRule.quoteKey,
+        market: editingRule.market,
+        outcome: editingRule.outcome,
+        unavailable: true
+      });
+    }
+
+    for (const { market, outcomes: outcomesByName } of groupedQuotes.values()) {
+      const marketGroup = document.createElement("div");
+      marketGroup.className = "market-group";
+      const title = document.createElement("span");
+      title.className = "market-title";
+      title.textContent = market;
+      const outcomes = document.createElement("div");
+      outcomes.className = "outcome-options";
+
+      for (const outcome of ["Up", "Down"]) {
+        const quote = outcomesByName.get(outcome);
+        const choice = document.createElement("button");
+        choice.type = "button";
+        choice.className = `outcome-choice ${outcome.toLowerCase()}`;
+        choice.textContent = quote
+          ? `${outcome} ${quote.price.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}¢`
+          : outcome;
+        choice.setAttribute("aria-pressed", String(Boolean(quote && quote.key === selectedQuoteKey)));
+        choice.disabled = !quote || Boolean(quote.unavailable);
+        if (quote && !quote.unavailable) {
+          quoteSelect.add(new Option(`${market} · ${choice.textContent}`, quote.key));
+          choice.addEventListener("click", () => {
+            quoteSelect.value = quote.key;
+            renderQuotes();
+          });
+        }
+        outcomes.append(choice);
+      }
+
+      marketGroup.append(title, outcomes);
+      quoteOptions.append(marketGroup);
     }
 
     if (quotes.some((quote) => quote.key === selectedQuoteKey)) {
       quoteSelect.value = selectedQuoteKey;
+    } else if (editingRule) {
+      quoteSelect.add(new Option(`${editingRule.market} · ${editingRule.outcome} (fora da página atual)`, editingRule.quoteKey));
+      quoteSelect.value = editingRule.quoteKey;
     }
   }
 
   function renderRules() {
-    rulesElement.replaceChildren();
-    if (rules.length === 0) {
-      rulesElement.innerHTML = '<p class="empty">Nenhuma regra configurada.</p>';
+    renderRuleList(rulesElement, rules, "rules");
+    renderRuleList(favoritesElement, rules.filter((rule) => rule.favorite), "favorites");
+  }
+
+  function renderRuleList(container, list, view) {
+    container.replaceChildren();
+    if (list.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = view === "favorites" ? "Nenhuma regra favorita ainda." : "Nenhuma regra criada ainda.";
+      container.append(empty);
       return;
     }
 
-    for (const rule of rules) {
+    for (const rule of list) {
       const row = document.createElement("div");
       row.className = "rule";
       const details = document.createElement("div");
@@ -1120,23 +1287,121 @@
       mode.className = "rule-mode";
       mode.textContent = rule.executionMessage || modeLabel(rule.mode, rule.executionStatus);
       details.append(title, detail, mode);
+      const actions = document.createElement("div");
+      actions.className = "rule-actions";
+      if (view === "favorites") {
+        const useTemplate = document.createElement("button");
+        useTemplate.type = "button";
+        useTemplate.className = "use-template";
+        useTemplate.textContent = "Usar modelo";
+        useTemplate.addEventListener("click", () => useRuleTemplate(rule));
+        actions.append(useTemplate);
+      } else {
+        const favorite = document.createElement("button");
+        favorite.type = "button";
+        favorite.className = "favorite";
+        favorite.textContent = rule.favorite ? "★ Favorita" : "☆ Favoritar";
+        favorite.addEventListener("click", () => updateFavorite(rule));
+        actions.append(favorite);
+        if (rule.executionStatus !== "queued" && rule.executionStatus !== "processing") {
+          const edit = document.createElement("button");
+          edit.type = "button";
+          edit.className = "edit";
+          edit.textContent = "Editar";
+          edit.addEventListener("click", () => editRule(rule));
+          actions.append(edit);
+        }
+      }
+
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "delete";
-      remove.textContent = "Remover";
+      remove.textContent = view === "favorites" ? "Desfavoritar" : "Remover";
       remove.addEventListener("click", async () => {
+        if (view === "favorites") {
+          await updateFavorite(rule, false);
+          return;
+        }
+        const previous = rules;
         rules = rules.filter((item) => item.id !== rule.id);
-        firedRules.delete(rule.id);
-        await chrome.storage.local.set({ [RULES_KEY]: rules });
-        renderRules();
+        try {
+          await persistRules();
+          renderRules();
+        } catch (error) {
+          rules = previous;
+          statusElement.textContent = `Não foi possível remover a regra: ${error.message || error}`;
+          renderRules();
+        }
       });
-      row.append(details, remove);
-      rulesElement.append(row);
+      actions.append(remove);
+      row.append(details, actions);
+      container.append(row);
     }
   }
 
+  async function updateFavorite(rule, favorite = !rule.favorite) {
+    const previous = rule.favorite;
+    rule.favorite = favorite;
+    try {
+      await persistRules();
+      renderRules();
+    } catch (error) {
+      rule.favorite = previous;
+      statusElement.textContent = `Não foi possível salvar o favorito: ${error.message || error}`;
+      renderRules();
+    }
+  }
+
+  function editRule(rule) {
+    if (rule.executionStatus === "queued" || rule.executionStatus === "processing") {
+      statusElement.textContent = "Não é possível editar uma regra que está na fila ou em execução.";
+      return;
+    }
+    resetRuleForm();
+    editingRuleId = rule.id;
+    form.elements.side.value = rule.side;
+    form.elements.trigger.value = rule.trigger || "reaches";
+    form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
+    form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);
+    form.elements.shares.value = rule.shares === undefined ? "" : String(rule.shares);
+    form.elements.expiration.value = rule.expiration || "never";
+    form.elements.mode.value = rule.mode || "notify";
+    renderQuotes();
+    updateRuleFormMode();
+    statusElement.textContent = rule.executionStatus
+      ? "A regra já foi executada; editar não a reativa."
+      : "Edite os campos e salve para atualizar a regra.";
+    selectView("create");
+  }
+
+  function useRuleTemplate(rule) {
+    resetRuleForm();
+    if (quotes.some((quote) => quote.key === rule.quoteKey)) {
+      quoteSelect.value = rule.quoteKey;
+    } else if (quotes.length) {
+      quoteSelect.value = quotes[0].key;
+    }
+    form.elements.side.value = rule.side;
+    form.elements.trigger.value = rule.trigger || "reaches";
+    form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
+    form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);
+    form.elements.shares.value = rule.shares === undefined ? "" : String(rule.shares);
+    form.elements.expiration.value = rule.expiration || "never";
+    form.elements.mode.value = rule.mode || "notify";
+    renderQuotes();
+    statusElement.classList.add("success");
+    statusElement.textContent = quotes.some((quote) => quote.key === rule.quoteKey)
+      ? "Modelo carregado. Salve para criar uma nova regra."
+      : "Modelo carregado. Selecione o mercado atual antes de salvar.";
+    panel.classList.add("open");
+    backdrop.classList.add("open");
+    selectView("create");
+  }
+
   function modeLabel(mode, executionStatus) {
-    if (executionStatus === "processing") return "Tentativa em andamento; confira no Polymarket";
+    if (executionStatus === "queued") return "Na fila — será executada uma única vez";
+    if (executionStatus === "processing") return "Execução em andamento; não será repetida";
+    if (executionStatus === "completed") return "Concluída — não será executada novamente";
     if (executionStatus === "clicked") return "Clique em Trade enviado; confira o status";
     if (executionStatus === "failed") return "Falhou; confira antes de criar outra regra";
     if (mode === "auto_limit") return "Automatizar ordem limite (uma tentativa)";
@@ -1157,6 +1422,4 @@
 
   const observer = new MutationObserver(updateOnMutation);
   observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
-  window.addEventListener("resize", positionWidgets);
-  window.addEventListener("scroll", positionWidgets, true);
 })();
