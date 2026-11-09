@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PolyMakr",
   "version": "0.1.0",
-  "description": "Monitore preços do Polymarket e configure alertas por condição.",
+  "description": "Monitore preços do Polymarket e configure regras de alerta e ordem limite.",
   "permissions": [
     "storage",
     "notifications",

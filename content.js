@@ -98,7 +98,7 @@
             <option value="confirm">Avisar e pedir confirmação</option>
             <option value="auto_limit">Automatizar ordem limite</option>
           </select></label>
-          <p class="warning mode-note">A execução de ordens ainda não está conectada. Nesta versão, todos os modos apenas geram avisos; nenhuma ordem é enviada.</p>
+          <p class="warning mode-note">Também é possível configurar a automação na aba Auto, junto de Buy e Sell no cartão de negociação.</p>
           <button class="primary" type="submit">Salvar regra</button>
           <p class="status" role="status"></p>
         </form>
@@ -117,8 +117,17 @@
   const rulesElement = shadow.querySelector(".rules");
   const form = shadow.querySelector("form");
   const statusElement = shadow.querySelector(".status");
+  const tradingSideGroups = new WeakSet();
   let rules = [];
   let quotes = [];
+  let autoModeActive = false;
+  let lastNativeTradeSide = null;
+  let inlineAutoHost = null;
+  let inlineAutoRoot = null;
+  let inlineAutoForm = null;
+  let autoLayoutPanel = null;
+  let autoLayoutHeader = null;
+  const autoHiddenElements = new Map();
   const previousPrices = new Map();
   const firedRules = new Set();
   let scanTimer;
@@ -142,40 +151,7 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = new FormData(form);
-    const quote = quotes.find((item) => item.key === data.get("quote"));
-    const triggerCents = Number(data.get("triggerCents"));
-    const orderLimitCents = Number(data.get("orderLimitCents"));
-    const shares = Number(data.get("shares"));
-
-    if (!quote
-      || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
-      || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
-      || !Number.isFinite(shares) || shares < 0.01) {
-      statusElement.textContent = "Confira mercado, preços em centavos e quantidade de shares.";
-      return;
-    }
-
-    const rule = {
-      id: crypto.randomUUID(),
-      market: quote.market,
-      quoteKey: quote.key,
-      outcome: quote.outcome,
-      side: data.get("side"),
-      trigger: data.get("trigger"),
-      triggerCents,
-      orderLimitCents,
-      shares,
-      expiration: data.get("expiration"),
-      mode: data.get("mode"),
-      enabled: true
-    };
-
-    rules = [...rules, rule];
-    await chrome.storage.local.set({ [RULES_KEY]: rules });
-    form.reset();
-    statusElement.textContent = "Regra salva neste navegador.";
-    renderRules();
+    await saveRule(new FormData(form), statusElement, form, "notify");
   });
 
   function togglePanel() {
@@ -184,6 +160,466 @@
       scan();
     }
     positionWidgets();
+  }
+
+  async function saveRule(data, ruleStatus, ruleForm, defaultMode) {
+    const quote = quotes.find((item) => item.key === data.get("quote"));
+    const triggerCents = Number(data.get("triggerCents"));
+    const orderLimitCents = Number(data.get("orderLimitCents"));
+    const shares = Number(data.get("shares"));
+    const side = data.get("side")
+      || (normalizedText(lastNativeTradeSide) === "sell" ? "sell" : "buy");
+
+    if (!quote
+      || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
+      || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
+      || !Number.isFinite(shares) || shares < 0.01) {
+      ruleStatus.classList.remove("success");
+      ruleStatus.textContent = "Confira mercado, preços em centavos e quantidade de shares.";
+      return;
+    }
+
+    const rule = {
+      id: crypto.randomUUID(),
+      market: quote.market,
+      quoteKey: quote.key,
+      outcome: quote.outcome,
+      side,
+      trigger: data.get("trigger"),
+      triggerCents,
+      orderLimitCents,
+      shares,
+      expiration: data.get("expiration") || "never",
+      mode: data.get("mode") || defaultMode,
+      enabled: true
+    };
+
+    rules = [...rules, rule];
+    try {
+      await chrome.storage.local.set({ [RULES_KEY]: rules });
+    } catch (error) {
+      rules = rules.filter((item) => item.id !== rule.id);
+      ruleStatus.classList.remove("success");
+      ruleStatus.textContent = `Não foi possível salvar a regra: ${error.message || error}`;
+      return;
+    }
+
+    if (ruleForm) {
+      if (ruleForm === form) {
+        ruleForm.reset();
+      }
+    }
+    ruleStatus.classList.add("success");
+    ruleStatus.textContent = "Regra salva neste navegador.";
+    renderRules();
+  }
+
+  function syncAutoTradeTab() {
+    const tradingPanel = findTradingPanelElement();
+    const sideGroup = tradingPanel && findTradeSideGroup(tradingPanel);
+    const outcomeGroup = tradingPanel && findOutcomeGroup(tradingPanel);
+
+    if (!sideGroup || !outcomeGroup) {
+      setAutoMode(false);
+      autoModeActive = false;
+      inlineAutoHost?.remove();
+      inlineAutoButton?.remove();
+      inlineAutoButton = null;
+      autoLayoutPanel = null;
+      autoLayoutHeader = null;
+      return;
+    }
+
+    if (!inlineAutoButton || inlineAutoButton.parentElement !== sideGroup) {
+      inlineAutoButton?.remove();
+      inlineAutoButton = createAutoButton(sideGroup);
+    }
+
+    if (!tradingSideGroups.has(sideGroup)) {
+      tradingSideGroups.add(sideGroup);
+      sideGroup.addEventListener("click", (event) => {
+        const target = event.target instanceof Element ? event.target.closest("button") : null;
+        if (target && target !== inlineAutoButton
+          && ["buy", "sell"].includes(normalizedText(target))) {
+          lastNativeTradeSide = target;
+          setAutoMode(false, sideGroup);
+        }
+      });
+    }
+
+    if (!inlineAutoHost) {
+      inlineAutoHost = document.createElement("div");
+      inlineAutoHost.id = "polymakr-inline-auto";
+      inlineAutoRoot = inlineAutoHost.attachShadow({ mode: "open" });
+      inlineAutoRoot.innerHTML = `
+        <style>
+          :host { display: block; width: 100%; color: inherit; font: inherit; }
+          * { box-sizing: border-box; }
+          .auto { display: grid; gap: 18px; padding: 16px 0 0; }
+          .auto.enter { animation: enter .2s ease-out both; }
+          @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+          .heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+          .heading strong { color: inherit; font-size: 16px; font-weight: 650; }
+          .heading span, .hint { color: inherit; opacity: .68; font-size: 11px; }
+          .prices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+          .price { min-height: 48px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: rgba(255,255,255,.04); color: inherit; cursor: pointer; font: inherit; font-weight: 650; transition: background .16s ease, border-color .16s ease, transform .16s ease; }
+          .price:hover { transform: translateY(-1px); }
+          .price.up { color: #087c3b; }
+          .price.down { color: #c4312b; }
+          .price.up[aria-pressed="true"] { border-color: #087c3b; background: rgba(8,124,59,.16); }
+          .price.down[aria-pressed="true"] { border-color: #c4312b; background: rgba(196,49,43,.16); }
+          form { display: grid; gap: 13px; }
+          label { display: grid; gap: 6px; color: inherit; opacity: .78; font-size: 12px; font-weight: 500; }
+          input, select { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; background: rgba(255,255,255,.04); color: inherit; font: inherit; font-size: 14px; outline: none; }
+          option { background: #171d26; color: #fff; }
+          input:focus, select:focus { border-color: #3859e8; box-shadow: 0 0 0 2px #3859e822; }
+          .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          .save { height: 48px; border: 0; border-radius: 8px; background: #3859e8; color: #fff; cursor: pointer; font: inherit; font-size: 15px; font-weight: 650; transition: background .16s ease, transform .16s ease; }
+          .save:hover { background: #2e49c2; transform: translateY(-1px); }
+          .status { min-height: 15px; margin: -4px 0 0; color: #ad3434; font-size: 11px; }
+          .status.success { color: #237a46; }
+          .hint { margin: -6px 0 0; line-height: 1.45; }
+          @media (prefers-reduced-motion: reduce) { .auto.enter, .price, .save { animation: none; transition: none; } }
+        </style>
+        <section class="auto" aria-label="Criar automação PolyMakr">
+          <div class="heading"><strong>Automação</strong><span>Ordem limite</span></div>
+          <div class="prices" aria-label="Resultados e preços"></div>
+          <form>
+            <select name="quote" aria-label="Resultado" required hidden></select>
+            <div class="row">
+              <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
+              <label>Quantidade (shares)<input name="shares" type="number" min="0.01" step="0.01" placeholder="ex.: 5" required></label>
+            </div>
+            <div class="row">
+              <label>Disparar em (¢)<input name="triggerCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
+              <label>Preço limite (¢)<input name="orderLimitCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
+            </div>
+            <button class="save" type="submit">Salvar automação</button>
+            <p class="status" role="status"></p>
+            <p class="hint">A regra seleciona <span class="side-label">Buy</span> e envia uma ordem limite quando o gatilho for atingido.</p>
+          </form>
+        </section>`;
+
+      inlineAutoForm = inlineAutoRoot.querySelector("form");
+      inlineAutoForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const autoStatus = inlineAutoRoot.querySelector(".status");
+        await saveRule(new FormData(inlineAutoForm), autoStatus, inlineAutoForm, "auto_limit");
+      });
+      for (const input of inlineAutoForm.querySelectorAll('[name="triggerCents"], [name="orderLimitCents"]')) {
+        input.addEventListener("input", () => {
+          input.dataset.edited = "true";
+        });
+      }
+    }
+
+    const tabsRow = sideGroup.parentElement;
+    const header = tabsRow.parentElement;
+    if (autoLayoutPanel !== tradingPanel || autoLayoutHeader !== header) {
+      restoreAutoLayout();
+      autoLayoutPanel = tradingPanel;
+      autoLayoutHeader = header;
+    }
+    if (inlineAutoHost.parentElement !== tradingPanel
+      || inlineAutoHost.previousElementSibling !== header) {
+      tradingPanel.insertBefore(inlineAutoHost, header.nextSibling);
+    }
+
+    const siteSide = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")]
+      .find((button) => button.getAttribute("aria-checked") === "true");
+    if (siteSide && !autoModeActive) {
+      lastNativeTradeSide = siteSide;
+    }
+    renderInlineAutoQuotes();
+    inlineAutoRoot.querySelector(".side-label").textContent =
+      normalizedText(lastNativeTradeSide || siteSide) === "sell" ? "Sell" : "Buy";
+    setAutoMode(autoModeActive, sideGroup);
+  }
+
+  let inlineAutoButton = null;
+
+  function createAutoButton(sideGroup) {
+    const siteSides = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")];
+    const reference = siteSides.find((button) => button.getAttribute("aria-checked") !== "true") || siteSides[0];
+    if (!reference) {
+      return null;
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "radio");
+    button.className = reference.className;
+    button.textContent = "Auto";
+    button.setAttribute("aria-label", "Auto");
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("aria-checked", "false");
+    button.setAttribute("data-state", "unchecked");
+    button.tabIndex = 0;
+    button.style.cssText = copyButtonStyles(reference);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const selectedSide = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")]
+        .find((side) => side.getAttribute("aria-checked") === "true");
+      if (!autoModeActive && selectedSide) {
+        lastNativeTradeSide = selectedSide;
+      }
+      setAutoMode(!autoModeActive, sideGroup);
+    });
+    sideGroup.append(button);
+    return button;
+  }
+
+  function copyButtonStyles(reference) {
+    const style = window.getComputedStyle(reference);
+    return [
+      `height:${style.height}`,
+      `min-height:${style.minHeight}`,
+      `padding:${style.padding}`,
+      `border:${style.border}`,
+      `border-radius:${style.borderRadius}`,
+      `font:${style.font}`,
+      `cursor:pointer`,
+      `flex:${style.flex}`,
+      `width:auto`,
+      `min-width:0`,
+      `white-space:nowrap`
+    ].join(";");
+  }
+
+  function updateAutoModeUI(sideGroup) {
+    if (sideGroup) {
+      const siteSides = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")];
+      if (!autoModeActive && !lastNativeTradeSide) {
+        lastNativeTradeSide = siteSides.find((button) => button.getAttribute("aria-checked") === "true")
+          || siteSides[0];
+      }
+      for (const side of siteSides) {
+        const selected = !autoModeActive && side === lastNativeTradeSide;
+        side.setAttribute("aria-checked", String(selected));
+        side.setAttribute("data-state", selected ? "checked" : "unchecked");
+      }
+    }
+    if (inlineAutoButton) {
+      inlineAutoButton.setAttribute("aria-pressed", String(autoModeActive));
+      inlineAutoButton.setAttribute("aria-checked", String(autoModeActive));
+      inlineAutoButton.setAttribute("data-state", autoModeActive ? "checked" : "unchecked");
+      inlineAutoButton.tabIndex = autoModeActive ? 0 : -1;
+      inlineAutoButton.dataset.active = String(autoModeActive);
+    }
+  }
+
+  function setAutoMode(active, sideGroup) {
+    if (!sideGroup) {
+      const tradingPanel = findTradingPanelElement();
+      sideGroup = tradingPanel && findTradeSideGroup(tradingPanel);
+    }
+
+    const enteringAuto = active && !autoModeActive;
+    autoModeActive = active;
+    if (sideGroup) {
+      const nativeSides = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")];
+      if (active) {
+        const selected = nativeSides.find((side) => side.getAttribute("aria-checked") === "true");
+        if (selected) {
+          lastNativeTradeSide = selected;
+        }
+      } else if (!lastNativeTradeSide?.isConnected) {
+        lastNativeTradeSide = nativeSides.find((side) => side.getAttribute("aria-checked") === "true")
+          || nativeSides[0];
+      }
+
+      for (const side of nativeSides) {
+        const selected = !active && side === lastNativeTradeSide;
+        side.setAttribute("aria-checked", String(selected));
+        side.setAttribute("data-state", selected ? "checked" : "unchecked");
+        side.tabIndex = selected ? 0 : -1;
+      }
+    }
+
+    updateAutoModeUI(sideGroup);
+    if (inlineAutoHost) {
+      inlineAutoHost.style.display = active ? "block" : "none";
+      const autoScreen = inlineAutoRoot.querySelector(".auto");
+      if (enteringAuto) {
+        autoScreen.classList.remove("enter");
+        void autoScreen.offsetWidth;
+        autoScreen.classList.add("enter");
+      }
+    }
+    if (active) {
+      applyAutoLayout(sideGroup);
+    } else if (autoHiddenElements.size > 0) {
+      restoreAutoLayout();
+    }
+  }
+
+  function applyAutoLayout(sideGroup) {
+    const tradingPanel = findTradingPanelElement();
+    const header = sideGroup?.parentElement?.parentElement;
+    if (!tradingPanel || !header) {
+      return;
+    }
+
+    if (autoLayoutPanel !== tradingPanel || autoLayoutHeader !== header) {
+      restoreAutoLayout();
+      autoLayoutPanel = tradingPanel;
+      autoLayoutHeader = header;
+    }
+
+    if (inlineAutoHost.parentElement !== tradingPanel
+      || inlineAutoHost.previousElementSibling !== header) {
+      tradingPanel.insertBefore(inlineAutoHost, header.nextSibling);
+    }
+
+    for (const child of tradingPanel.children) {
+      if (child !== header && child !== inlineAutoHost) {
+        hideAutoElement(child);
+      }
+    }
+    const typeControls = ["Market", "Limit"]
+      .flatMap((label) => findExactControls(header, label))
+      .filter((element) => element.getAttribute("aria-haspopup") === "menu");
+    for (const control of typeControls) {
+      hideAutoElement(control);
+    }
+  }
+
+  function hideAutoElement(element) {
+    if (!autoHiddenElements.has(element)) {
+      autoHiddenElements.set(element, {
+        display: element.style.getPropertyValue("display"),
+        displayPriority: element.style.getPropertyPriority("display"),
+        hidden: element.hidden,
+        ariaHidden: element.getAttribute("aria-hidden")
+      });
+    }
+    element.style.setProperty("display", "none", "important");
+    element.hidden = true;
+    element.setAttribute("aria-hidden", "true");
+  }
+
+  function restoreAutoLayout() {
+    for (const [element, previous] of autoHiddenElements) {
+      if (previous.display) {
+        element.style.setProperty("display", previous.display, previous.displayPriority);
+      } else {
+        element.style.removeProperty("display");
+      }
+      element.hidden = previous.hidden;
+      if (previous.ariaHidden === null) {
+        element.removeAttribute("aria-hidden");
+      } else {
+        element.setAttribute("aria-hidden", previous.ariaHidden);
+      }
+    }
+    autoHiddenElements.clear();
+    autoLayoutPanel = null;
+    autoLayoutHeader = null;
+  }
+
+  function findTradeSideGroup(tradingPanel) {
+    const groups = [...tradingPanel.querySelectorAll("[role='radiogroup']")]
+      .filter((group) => findExactControls(group, "Buy").length === 1
+        && findExactControls(group, "Sell").length === 1);
+    if (groups.length === 1) {
+      return groups[0];
+    }
+
+    const buyButton = findExactControl(tradingPanel, "Buy");
+    const sellButton = findExactControl(tradingPanel, "Sell");
+    for (let node = buyButton?.parentElement, depth = 0; node && depth < 5; node = node.parentElement, depth += 1) {
+      if (node.contains(sellButton) && findExactControls(node, "Buy").length === 1
+        && findExactControls(node, "Sell").length === 1) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  function findOutcomeGroup(tradingPanel) {
+    return [...tradingPanel.querySelectorAll("[role='radiogroup']")]
+      .find((group) => [...group.querySelectorAll("button,[role='radio']")]
+        .some((button) => parseQuoteButton(button)?.outcome === "Up")
+        && [...group.querySelectorAll("button,[role='radio']")]
+          .some((button) => parseQuoteButton(button)?.outcome === "Down"));
+  }
+
+  function getInlineQuotes() {
+    const tradingPanel = findTradingPanelElement();
+    const outcomeGroup = tradingPanel && findOutcomeGroup(tradingPanel);
+    if (!outcomeGroup) {
+      return [];
+    }
+    return [...outcomeGroup.querySelectorAll("button,[role='radio']")]
+      .map((button) => {
+        const quote = parseQuoteButton(button);
+        return quote ? { ...quote, element: button } : null;
+      })
+      .filter(Boolean);
+  }
+
+  function renderInlineAutoQuotes() {
+    if (!inlineAutoRoot || !inlineAutoForm) {
+      return;
+    }
+
+    const currentQuotes = getInlineQuotes();
+    const prices = inlineAutoRoot.querySelector(".prices");
+    const quoteSelect = inlineAutoForm.querySelector('[name="quote"]');
+    const selectedKey = quoteSelect.value;
+    const selectedNativeQuote = currentQuotes.find((quote) => quote.element.getAttribute("aria-checked") === "true");
+    prices.replaceChildren();
+    quoteSelect.replaceChildren();
+
+    if (currentQuotes.length === 0) {
+      quoteSelect.add(new Option("Aguardando preços…", ""));
+      return;
+    }
+
+    for (const quote of currentQuotes) {
+      const option = new Option(`${quote.outcome} · ${quote.price}¢`, quote.key);
+      quoteSelect.add(option);
+
+      const priceButton = document.createElement("button");
+      priceButton.type = "button";
+      priceButton.className = `price ${quote.outcome.toLowerCase()}`;
+      priceButton.textContent = `${quote.outcome} ${quote.price}¢`;
+      priceButton.setAttribute("aria-pressed", String(quote.key === (selectedKey || selectedNativeQuote?.key)));
+      priceButton.addEventListener("click", () => {
+        quoteSelect.value = quote.key;
+        selectNativeQuote(quote.key);
+        updateAutoPriceDefaults();
+        renderInlineAutoQuotes();
+      });
+      prices.append(priceButton);
+    }
+
+    quoteSelect.value = currentQuotes.some((quote) => quote.key === selectedKey)
+      ? selectedKey
+      : selectedNativeQuote?.key || currentQuotes[0].key;
+    updateAutoPriceDefaults();
+  }
+
+  function selectNativeQuote(quoteKey) {
+    const quote = getInlineQuotes().find((item) => item.key === quoteKey);
+    if (quote && quote.element.getAttribute("aria-checked") !== "true") {
+      quote.element.click();
+    }
+  }
+
+  function updateAutoPriceDefaults() {
+    const quoteKey = inlineAutoForm?.querySelector('[name="quote"]').value;
+    const quote = getInlineQuotes().find((item) => item.key === quoteKey);
+    if (!quote) {
+      return;
+    }
+    for (const name of ["triggerCents", "orderLimitCents"]) {
+      const input = inlineAutoForm.querySelector(`[name="${name}"]`);
+      if (!input.dataset.edited || !input.value) {
+        input.value = String(quote.price);
+      }
+    }
   }
 
   function parseQuoteButton(button) {
@@ -265,36 +701,12 @@
     }
     quotes = [...next.values()];
     renderQuotes();
+    syncAutoTradeTab();
     scheduleNextScan();
   }
 
   function findTradingPanel() {
-    const candidates = [...document.querySelectorAll("button,[role='button']")]
-      .filter((button) => {
-        const label = (button.innerText || button.textContent || "").replace(/\s+/g, " ").trim();
-        return /^trade$/i.test(label) && isVisible(button);
-      });
-
-    for (const tradeButton of candidates) {
-      let node = tradeButton.parentElement;
-      for (let depth = 0; node && depth < 10; depth += 1, node = node.parentElement) {
-        if (!isVisible(node)) {
-          continue;
-        }
-
-        const rect = node.getBoundingClientRect();
-        if (rect.width < 230 || rect.width > 520 || rect.height < 280 || rect.height > 900) {
-          continue;
-        }
-
-        const text = (node.innerText || "").replace(/\s+/g, " ").toLowerCase();
-        if (/\bbuy\b/.test(text) && /\bsell\b/.test(text) && /\bshares?\b/.test(text)) {
-          return rect;
-        }
-      }
-    }
-
-    return null;
+    return findTradingPanelElement()?.getBoundingClientRect() || null;
   }
 
   function isVisible(element) {
@@ -360,7 +772,7 @@
 
   function checkRules(quote, previous) {
     for (const rule of rules) {
-      if (!rule.enabled || rule.quoteKey !== quote.key) {
+      if (!rule.enabled || rule.executionStatus || rule.quoteKey !== quote.key) {
         continue;
       }
       const limit = Number(rule.triggerCents ?? rule.limitCents);
@@ -379,22 +791,266 @@
         ? (rule.side === "buy" ? `US$ ${rule.amount}` : `${rule.amount} shares`)
         : `${rule.shares} shares`;
       const orderPrice = Number(rule.orderLimitCents ?? rule.limitCents);
-      const modeNotice = rule.mode === "auto_limit"
-        ? "Automação não conectada; ordem não enviada."
-        : rule.mode === "confirm"
-          ? "Confirmação não conectada."
-          : "Somente alerta.";
-      const message = `${verb} ${quote.outcome} em ${quote.market}: gatilho de ${limit}¢ atingido (preço observado ${quote.price}¢). Ordem limite configurada em ${orderPrice}¢, tamanho: ${size}. Expiração: Never. ${modeNotice}`;
-      statusElement.textContent = message;
-      chrome.runtime.sendMessage({
-        type: "POLYMAKR_NOTIFICATION",
-        title: `Regra PolyMakr: ${verb.toLowerCase()}`,
-        message
-      });
+      const summary = `${verb} ${quote.outcome} em ${quote.market}: gatilho de ${limit}¢ atingido (preço observado ${quote.price}¢). Ordem limite configurada em ${orderPrice}¢, tamanho: ${size}. Expiração: Never.`;
+      if (rule.mode === "auto_limit") {
+        startAutomaticOrder(rule, quote, summary).catch((error) => {
+          recordAutomaticOrderFailure(rule, error);
+        });
+        continue;
+      }
+
+      const modeNotice = rule.mode === "confirm"
+        ? "Confirmação não conectada; somente aviso."
+        : "Somente alerta.";
+      sendRuleNotification(`${summary} ${modeNotice}`, verb);
     }
   }
 
+  async function startAutomaticOrder(rule, quote, summary) {
+    rule.executionStatus = "processing";
+    await chrome.storage.local.set({ [RULES_KEY]: rules });
+    renderRules();
+
+    await executeLimitOrder(rule, quote);
+
+    rule.executionStatus = "clicked";
+    rule.executionMessage = "Clique em Trade enviado; confira o status da ordem no Polymarket.";
+    await chrome.storage.local.set({ [RULES_KEY]: rules });
+    renderRules();
+    sendRuleNotification(`${summary} Clique em Trade enviado. Confira a ordem no Polymarket e confirme a carteira se solicitado.`, rule.side === "buy" ? "Comprar" : "Vender");
+  }
+
+  async function executeLimitOrder(rule, quote) {
+    if (autoModeActive) {
+      setAutoMode(false);
+    }
+
+    if (autoModeActive) {
+      setAutoMode(false);
+    }
+
+    if (!["buy", "sell"].includes(rule.side)
+      || !Number.isFinite(Number(rule.orderLimitCents))
+      || Number(rule.orderLimitCents) <= 0
+      || Number(rule.orderLimitCents) >= 100
+      || !Number.isFinite(Number(rule.shares))
+      || Number(rule.shares) < 0.01) {
+      throw new Error("Os valores salvos da ordem são inválidos.");
+    }
+
+    const quoteButton = quote.element;
+    const currentQuote = quoteButton && parseQuoteButton(quoteButton);
+    if (!quoteButton || !quoteButton.isConnected || !isVisible(quoteButton)
+      || !currentQuote || currentQuote.key !== rule.quoteKey || currentQuote.outcome !== rule.outcome) {
+      throw new Error("O botão do resultado associado à regra não está mais disponível.");
+    }
+
+    quoteButton.click();
+    await waitForPageUpdate();
+    verifySelectedQuote(rule);
+
+    let panel = findTradingPanelElement();
+    if (!panel) {
+      throw new Error("Não encontrei o formulário de ordem do Polymarket.");
+    }
+
+    await selectTradeSide(panel, rule.side);
+    panel = findTradingPanelElement();
+    if (!panel) {
+      throw new Error("O formulário de ordem desapareceu após selecionar Buy/Sell.");
+    }
+
+    await selectLimitOrderType(panel);
+    panel = findTradingPanelElement();
+    if (!panel) {
+      throw new Error("O formulário de ordem desapareceu após selecionar Limit.");
+    }
+
+    const priceInput = findUniqueInput(panel, "0¢", "preço limite");
+    const sharesInput = findUniqueInput(panel, "0", "quantidade de shares");
+    setInputValue(priceInput, String(rule.orderLimitCents));
+    setInputValue(sharesInput, String(rule.shares));
+    await waitForPageUpdate();
+
+    panel = findTradingPanelElement();
+    if (!panel) {
+      throw new Error("O formulário de ordem desapareceu ao preencher preço e shares.");
+    }
+
+    const confirmedPriceInput = findUniqueInput(panel, "0¢", "preço limite");
+    const confirmedSharesInput = findUniqueInput(panel, "0", "quantidade de shares");
+    if (!valuesMatch(confirmedPriceInput.value, rule.orderLimitCents)
+      || !valuesMatch(confirmedSharesInput.value, rule.shares)) {
+      throw new Error("O Polymarket não confirmou os valores configurados; a ordem não foi enviada.");
+    }
+
+    const tradeButton = findExactControl(panel, "Trade");
+    if (!tradeButton || tradeButton.disabled) {
+      throw new Error("O botão Trade não está disponível para enviar a ordem.");
+    }
+    tradeButton.click();
+  }
+
+  async function selectTradeSide(panel, side) {
+    const label = side === "buy" ? "Buy" : "Sell";
+    let control = findExactControl(panel, label);
+    if (!control) {
+      throw new Error(`Não encontrei a opção ${label} no formulário.`);
+    }
+    if (control.getAttribute("aria-checked") !== "true") {
+      control.click();
+      await waitForPageUpdate();
+      const updatedPanel = findTradingPanelElement();
+      control = updatedPanel && findExactControl(updatedPanel, label);
+    }
+    if (!control || control.getAttribute("aria-checked") !== "true") {
+      throw new Error(`Não foi possível confirmar a seleção ${label}.`);
+    }
+  }
+
+  async function selectLimitOrderType(panel) {
+    const typeControls = ["Market", "Limit"]
+      .flatMap((label) => findExactControls(panel, label))
+      .filter((element) => element.getAttribute("aria-haspopup") === "menu");
+    if (typeControls.length !== 1) {
+      throw new Error("Não encontrei o seletor de tipo de ordem.");
+    }
+    const control = typeControls[0];
+    if (normalizedText(control) === "limit") {
+      return;
+    }
+
+    control.click();
+    await waitForPageUpdate();
+    const limitOptions = findExactControls(document, "Limit")
+      .filter((element) => element.getAttribute("role") === "menuitem"
+        || element.getAttribute("role") === "menuitemradio"
+        || element.getAttribute("role") === "option");
+    if (limitOptions.length !== 1) {
+      throw new Error("Não foi possível identificar com segurança a opção Limit.");
+    }
+    limitOptions[0].click();
+    await waitForPageUpdate();
+
+    const updatedPanel = findTradingPanelElement();
+    const updatedControl = updatedPanel
+      && findExactControls(updatedPanel, "Limit")
+        .find((element) => element.getAttribute("aria-haspopup") === "menu");
+    if (!updatedControl) {
+      throw new Error("Não foi possível confirmar que o tipo de ordem Limit foi selecionado.");
+    }
+  }
+
+  function verifySelectedQuote(rule) {
+    const selected = [...document.querySelectorAll("button[role='radio']")]
+      .find((button) => button.getAttribute("aria-checked") === "true"
+        && parseQuoteButton(button)?.key === rule.quoteKey);
+    if (!selected || parseQuoteButton(selected)?.outcome !== rule.outcome) {
+      throw new Error("Não foi possível confirmar a seleção do resultado da regra.");
+    }
+  }
+
+  function findTradingPanelElement() {
+    if (autoModeActive && autoLayoutPanel?.isConnected) {
+      return autoLayoutPanel;
+    }
+
+    const candidates = [...document.querySelectorAll("button,[role='button']")]
+      .filter((button) => normalizedText(button) === "trade" && isVisible(button));
+
+    for (const tradeButton of candidates) {
+      let node = tradeButton.parentElement;
+      for (let depth = 0; node && depth < 10; depth += 1, node = node.parentElement) {
+        if (!isVisible(node)) {
+          continue;
+        }
+
+        const rect = node.getBoundingClientRect();
+        if (rect.width < 230 || rect.width > 520 || rect.height < 280 || rect.height > 900) {
+          continue;
+        }
+
+        const text = normalizedText(node);
+        if (/\bbuy\b/.test(text) && /\bsell\b/.test(text) && /\bshares?\b/.test(text)) {
+          return node;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function findExactControls(root, label) {
+    return [...root.querySelectorAll("button,[role='button'],[role='radio'],[role='menuitem'],[role='menuitemradio'],[role='option']")]
+      .filter((element) => isVisible(element) && normalizedText(element) === label.toLowerCase());
+  }
+
+  function findExactControl(root, label) {
+    const matches = findExactControls(root, label);
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function findUniqueInput(panel, placeholder, description) {
+    const matches = [...panel.querySelectorAll("input")]
+      .filter((input) => isVisible(input)
+        && input.getAttribute("placeholder") === placeholder
+        && !input.disabled
+        && !input.readOnly);
+    if (matches.length !== 1) {
+      throw new Error(`Não foi possível identificar com segurança o campo de ${description}.`);
+    }
+    return matches[0];
+  }
+
+  function setInputValue(input, value) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) {
+      throw new Error("Não foi possível preencher um campo do formulário de ordem.");
+    }
+    setter.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function valuesMatch(value, expected) {
+    const parsed = Number(String(value).replace(",", "."));
+    return Number.isFinite(parsed) && Math.abs(parsed - Number(expected)) < 0.001;
+  }
+
+  function normalizedText(element) {
+    return (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function waitForPageUpdate() {
+    return new Promise((resolve) => window.setTimeout(resolve, 150));
+  }
+
+  function recordAutomaticOrderFailure(rule, error) {
+    rule.executionStatus = "failed";
+    const reason = error instanceof Error ? error.message : "Falha inesperada ao preparar a ordem.";
+    rule.executionMessage = `${reason} Confira o Polymarket antes de criar outra regra.`;
+    chrome.storage.local.set({ [RULES_KEY]: rules }).then(() => {
+      renderRules();
+    }).catch((storageError) => {
+      rule.executionMessage += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
+      renderRules();
+    });
+    const message = `A tentativa automática não foi concluída: ${rule.executionMessage}`;
+    statusElement.textContent = message;
+    sendRuleNotification(message, "Automação não concluída");
+  }
+
+  function sendRuleNotification(message, action) {
+    statusElement.textContent = message;
+    chrome.runtime.sendMessage({
+      type: "POLYMAKR_NOTIFICATION",
+      title: `Regra PolyMakr: ${action.toLowerCase()}`,
+      message
+    });
+  }
+
   function renderQuotes() {
+    const selectedQuoteKey = quoteSelect.value;
     quotesElement.replaceChildren();
     quoteSelect.replaceChildren();
 
@@ -424,6 +1080,10 @@
       const option = new Option(`${quote.market} · ${quote.outcome} — ${quote.price}¢`, quote.key);
       option.style.color = quote.outcome.toLowerCase() === "down" ? "#c4312b" : "#087c3b";
       quoteSelect.add(option);
+    }
+
+    if (quotes.some((quote) => quote.key === selectedQuoteKey)) {
+      quoteSelect.value = selectedQuoteKey;
     }
   }
 
@@ -458,7 +1118,7 @@
       detail.textContent = `${rule.market} · ${size} · expira: Never`;
       const mode = document.createElement("div");
       mode.className = "rule-mode";
-      mode.textContent = modeLabel(rule.mode);
+      mode.textContent = rule.executionMessage || modeLabel(rule.mode, rule.executionStatus);
       details.append(title, detail, mode);
       const remove = document.createElement("button");
       remove.type = "button";
@@ -475,9 +1135,12 @@
     }
   }
 
-  function modeLabel(mode) {
-    if (mode === "auto_limit") return "Automatizar ordem limite (não conectado)";
-    if (mode === "confirm") return "Avisar e pedir confirmação (não conectado)";
+  function modeLabel(mode, executionStatus) {
+    if (executionStatus === "processing") return "Tentativa em andamento; confira no Polymarket";
+    if (executionStatus === "clicked") return "Clique em Trade enviado; confira o status";
+    if (executionStatus === "failed") return "Falhou; confira antes de criar outra regra";
+    if (mode === "auto_limit") return "Automatizar ordem limite (uma tentativa)";
+    if (mode === "confirm") return "Avisar (confirmação manual não conectada)";
     return "Somente notificar";
   }
 
