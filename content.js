@@ -1,6 +1,7 @@
 ﻿(() => {
   const HOST_ID = "polymakr-extension-root";
   const RULES_KEY = "polymakr.rules";
+  const FAVORITES_KEY = "polymakr.favorites";
   const host = document.createElement("div");
   host.id = HOST_ID;
   document.documentElement.append(host);
@@ -57,19 +58,45 @@
       .save-action.favorite:hover { background: #cb7610; }
       .star { font-size: 16px; line-height: 1; }
       .hint { margin: 0; color: #78827b; font-size: 10px; line-height: 1.45; }
-      .rules { display: grid; gap: 8px; }
-      .rule { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px;
-        padding: 9px; border: 1px solid #e6ebe7; border-radius: 9px; }
-      .rule-title { font-weight: 700; }
-      .rule-detail { color: #657168; font-size: 11px; }
-      .rule-mode { color: #087c3b; font-size: 10px; font-weight: 700; }
-      .rule-actions { grid-row: span 3; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
-      .rule-actions button { padding: 2px 0; border: 0; background: transparent; cursor: pointer; font: inherit; font-size: 11px; }
-      .favorite, .use-template { color: #8a6413; }
-      .edit { color: #087c3b; }
-      .delete { color: #a33b2e; }
-      .status { min-height: 15px; margin: 0; color: #a33b2e; font-size: 11px; }
-      .status.success { color: #087c3b; }
+      .rules, .favorites { display: grid; gap: 11px; }
+      .rule, .template { display: grid; gap: 12px; padding: 14px; border: 1px solid #e6ebe7; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px #17211b08; }
+      .rule-header, .template-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .rule-title, .template-title { font-size: 13px; font-weight: 750; }
+      .rule-subtitle, .template-subtitle { margin-top: 3px; color: #657168; font-size: 11px; }
+      .state-chip { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #eef1ef; color: #566158; font-size: 10px; font-weight: 750; }
+      .state-chip.queued { background: #fff3d8; color: #8a5a00; }
+      .state-chip.processing { background: #e8efff; color: #3156a8; }
+      .state-chip.completed { background: #e4f5ea; color: #087c3b; }
+      .state-chip.failed { background: #fde9e8; color: #a33b2e; }
+      .rule-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .rule-metric { padding: 8px; border-radius: 8px; background: #f5f7f5; }
+      .rule-metric span { display: block; color: #78827b; font-size: 9px; }
+      .rule-metric strong { display: block; margin-top: 2px; font-size: 11px; }
+      .rule-mode { color: #657168; font-size: 10px; line-height: 1.4; }
+      .rule-actions, .template-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .rule-actions button, .template-actions button { padding: 6px 9px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; }
+      .rule-actions .delete, .template-actions .delete { color: #a33b2e; }
+      .template-actions .use-template { border-color: #f0c77e; background: #fff8e9; color: #805300; }
+      .toast-stack { position: fixed; z-index: 2147483648; top: 16px; right: 16px; display: grid; width: min(380px, calc(100vw - 32px)); gap: 10px; pointer-events: none; color: #18211b; font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .toast { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: start; padding: 13px; border: 1px solid #e1e7e2; border-radius: 12px; background: #fff; color: #18211b; box-shadow: 0 10px 32px #0002; pointer-events: auto; animation: toast-in .18s ease-out; }
+      @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+      .toast-icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; background: #e8f4ec; color: #087c3b; font-size: 15px; font-weight: 800; }
+      .toast.error .toast-icon { background: #fde9e8; color: #a33b2e; }
+      .toast.warning .toast-icon { background: #fff3d8; color: #8a5a00; }
+      .toast-title { font-size: 12px; font-weight: 750; }
+      .toast-message { margin-top: 3px; color: #59645d; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+      .toast-close { padding: 0 2px; border: 0; background: transparent; color: #78827b; cursor: pointer; font: inherit; font-size: 16px; }
+      .favorite-dialog-backdrop { position: fixed; z-index: 2147483649; inset: 0; display: grid; place-items: center; padding: 16px; background: #1118; }
+      .favorite-dialog-backdrop[hidden] { display: none; }
+      .favorite-dialog { display: grid; width: min(360px, 100%); gap: 12px; padding: 20px; border: 1px solid #e1e7e2; border-radius: 14px; background: #fff; box-shadow: 0 16px 48px #0003; }
+      .favorite-dialog h2 { margin: 0; font-size: 15px; }
+      .favorite-dialog p { margin: 0; color: #657168; font-size: 11px; }
+      .favorite-dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .favorite-dialog-actions button { padding: 9px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+      .favorite-dialog-cancel { background: #f1f3f1; color: #435047; }
+      .favorite-dialog-save { background: #e58b16; color: #fff; }
+      .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .count-chip { padding: 4px 8px; border-radius: 999px; background: #f1f3f1; color: #59645d; font-size: 10px; font-weight: 700; }
     </style>
     <div class="backdrop"></div>
     <section class="panel" role="dialog" aria-modal="true" aria-label="Painel PolyMakr">
@@ -82,7 +109,6 @@
         <button class="tab" type="button" role="tab" data-view="rules" aria-selected="false">Regras</button>
         <button class="tab" type="button" role="tab" data-view="favorites" aria-selected="false">Favoritos</button>
       </nav>
-      <p class="status" role="status" aria-live="polite"></p>
       <div class="view active" data-panel="create" role="tabpanel">
         <h2 class="form-heading">Criar regra</h2>
         <form>
@@ -114,14 +140,26 @@
         </form>
       </div>
       <div class="view" data-panel="rules" role="tabpanel" hidden>
-        <h2>Regras criadas</h2>
+        <div class="section-heading"><h2>Fila e histórico</h2><span class="count-chip rules-count">0</span></div>
         <div class="rules"></div>
       </div>
       <div class="view" data-panel="favorites" role="tabpanel" hidden>
-        <h2>Regras favoritas</h2>
+        <div class="section-heading"><h2>Modelos favoritos</h2><span class="count-chip favorites-count">0</span></div>
         <div class="favorites"></div>
       </div>
     </section>
+    <div class="toast-stack" aria-live="polite" aria-relevant="additions"></div>
+    <div class="favorite-dialog-backdrop" hidden>
+      <form class="favorite-dialog" role="dialog" aria-modal="true" aria-labelledby="favorite-dialog-title">
+        <h2 id="favorite-dialog-title">Nome do favorito</h2>
+        <p>Este modelo ficará salvo nos Favoritos e não entrará na fila de execução.</p>
+        <label>Nome<input name="favoriteName" maxlength="60" placeholder="Ex.: Comprar Up na abertura" required></label>
+        <div class="favorite-dialog-actions">
+          <button class="favorite-dialog-cancel" type="button">Cancelar</button>
+          <button class="favorite-dialog-save" type="submit">Salvar favorito</button>
+        </div>
+      </form>
+    </div>
   `;
 
   const panel = shadow.querySelector(".panel");
@@ -130,14 +168,21 @@
   const quoteOptions = shadow.querySelector(".market-outcomes");
   const rulesElement = shadow.querySelector(".rules");
   const favoritesElement = shadow.querySelector(".favorites");
+  const toastStack = shadow.querySelector(".toast-stack");
+  const favoriteDialogBackdrop = shadow.querySelector(".favorite-dialog-backdrop");
+  const favoriteDialog = shadow.querySelector(".favorite-dialog");
+  const favoriteDialogInput = favoriteDialog.querySelector('[name="favoriteName"]');
   const form = shadow.querySelector("form");
-  const statusElement = shadow.querySelector(".status");
   const formSubmitButton = form.querySelector('[value="save"]');
   const formHeading = shadow.querySelector(".form-heading");
   const cancelEditButton = shadow.querySelector(".cancel-edit");
   const tradingSideGroups = new WeakSet();
   let rules = [];
+  let favorites = [];
   let quotes = [];
+  let editingRuleId = null;
+  let pendingFavorite = null;
+  let renamingFavoriteId = null;
   let autoModeActive = false;
   let lastNativeTradeSide = null;
   let inlineAutoHost = null;
@@ -149,6 +194,7 @@
   const previousPrices = new Map();
   let queueWorkerRunning = false;
   let rulesWrite = Promise.resolve();
+  let favoritesWrite = Promise.resolve();
   let scanTimer;
   let mutationScanScheduled = false;
 
@@ -161,9 +207,18 @@
     resetRuleForm();
     selectView("rules");
   });
+  favoriteDialog.querySelector(".favorite-dialog-cancel").addEventListener("click", closeFavoriteDialog);
+  favoriteDialog.addEventListener("submit", saveFavoriteFromDialog);
+  favoriteDialogBackdrop.addEventListener("click", (event) => {
+    if (event.target === favoriteDialogBackdrop) closeFavoriteDialog();
+  });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && panel.classList.contains("open")) {
-      togglePanel();
+      if (!favoriteDialogBackdrop.hidden) {
+        closeFavoriteDialog();
+      } else {
+        togglePanel();
+      }
     }
   });
 
@@ -173,8 +228,24 @@
     }
   });
 
-  chrome.storage.local.get({ [RULES_KEY]: [] }).then(async (stored) => {
+  chrome.storage.local.get({ [RULES_KEY]: [], [FAVORITES_KEY]: [] }).then(async (stored) => {
     rules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
+    favorites = Array.isArray(stored[FAVORITES_KEY]) ? stored[FAVORITES_KEY] : [];
+    let migratedFavorites = false;
+    rules = rules.map((rule) => {
+      if (!rule.favorite) return rule;
+      if (!favorites.some((item) => item.sourceRuleId === rule.id)) {
+        favorites.push(createFavoriteTemplate(
+          rule,
+          `${rule.market} · ${rule.outcome} · ${rule.side === "buy" ? "Comprar" : "Vender"}`.slice(0, 60),
+          rule.id
+        ));
+      }
+      const cleanRule = { ...rule };
+      delete cleanRule.favorite;
+      migratedFavorites = true;
+      return cleanRule;
+    });
     let interrupted = false;
     for (const rule of rules) {
       if (rule.executionStatus === "processing") {
@@ -184,21 +255,29 @@
       }
     }
     renderRules();
-    if (interrupted) {
+    if (migratedFavorites || interrupted) {
       try {
-        await persistRules();
+        await Promise.all([
+          persistRules(),
+          migratedFavorites ? persistFavorites() : Promise.resolve()
+        ]);
       } catch (error) {
-        statusElement.textContent = `Não foi possível salvar o estado de execução interrompida: ${error.message || error}`;
+        showToast("Falha ao atualizar dados locais", error.message || String(error), "error");
       }
     }
     scan();
   }).catch((error) => {
-    statusElement.textContent = `Não foi possível carregar as regras: ${error.message || error}`;
+    showToast("Não foi possível carregar as regras", error.message || String(error), "error");
   });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveRule(new FormData(form, event.submitter), statusElement, form, "notify");
+    const data = new FormData(form, event.submitter);
+    if (data.get("saveAction") === "favorite") {
+      openFavoriteDialog(createRuleDraft(data));
+      return;
+    }
+    await saveRule(data, form, "notify");
   });
 
   function togglePanel() {
@@ -209,7 +288,7 @@
     }
   }
 
-  async function saveRule(data, ruleStatus, ruleForm, defaultMode) {
+  function createRuleDraft(data, defaultMode = "notify") {
     const oldRule = editingRuleId && rules.find((item) => item.id === editingRuleId);
     const selectedQuoteKey = data.get("quote");
     const quote = quotes.find((item) => item.key === selectedQuoteKey)
@@ -220,48 +299,37 @@
     const orderLimitCents = Number(data.get("orderLimitCents"));
     const shares = Number(data.get("shares"));
     const side = data.get("side");
-    const favorite = data.get("saveAction") === "favorite" || Boolean(oldRule?.favorite);
-
     if (!quote
       || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
       || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
-      || !Number.isFinite(shares) || shares < 0.01) {
-      ruleStatus.classList.remove("success");
-      ruleStatus.textContent = "Confira mercado, preços em centavos e quantidade de shares.";
-      return;
+      || !Number.isFinite(shares) || shares < 0.01
+      || !["buy", "sell"].includes(side)) {
+      showToast("Confira os dados da regra", "Selecione um mercado e informe preços e quantidade válidos.", "error");
+      return null;
     }
 
+    return {
+      market: quote.market,
+      quoteKey: quote.key,
+      outcome: quote.outcome,
+      side,
+      trigger: data.get("trigger"),
+      triggerCents,
+      orderLimitCents,
+      shares,
+      expiration: data.get("expiration") || "never",
+      mode: data.get("mode") || defaultMode
+    };
+  }
+
+  async function saveRule(data, ruleForm, defaultMode) {
+    const draft = createRuleDraft(data, defaultMode);
+    if (!draft) return;
+    const oldRule = editingRuleId && rules.find((item) => item.id === editingRuleId);
     const rule = oldRule
-      ? {
-          ...oldRule,
-          market: quote.market,
-          quoteKey: quote.key,
-          outcome: quote.outcome,
-          side,
-          trigger: data.get("trigger"),
-          triggerCents,
-          orderLimitCents,
-          shares,
-          expiration: data.get("expiration") || "never",
-          mode: data.get("mode") || defaultMode,
-          favorite
-        }
-      : {
-          id: crypto.randomUUID(),
-          market: quote.market,
-          quoteKey: quote.key,
-          outcome: quote.outcome,
-          side,
-          trigger: data.get("trigger"),
-          triggerCents,
-          orderLimitCents,
-          shares,
-          expiration: data.get("expiration") || "never",
-          mode: data.get("mode") || defaultMode,
-          enabled: true,
-          favorite,
-          createdAt: Date.now()
-        };
+      ? { ...oldRule, ...draft }
+      : { ...draft, id: crypto.randomUUID(), enabled: true, createdAt: Date.now() };
+    delete rule.favorite;
     if (oldRule) {
       rules = rules.map((item) => item.id === oldRule.id ? rule : item);
     } else {
@@ -275,8 +343,7 @@
       } else {
         rules = rules.filter((item) => item.id !== rule.id);
       }
-      ruleStatus.classList.remove("success");
-      ruleStatus.textContent = `Não foi possível salvar a regra: ${error.message || error}`;
+      showToast("Não foi possível salvar a regra", error.message || String(error), "error");
       return;
     }
 
@@ -285,11 +352,9 @@
     }
     editingRuleId = null;
     updateRuleFormMode();
-    statusElement.classList.add("success");
-    ruleStatus.classList.add("success");
-    ruleStatus.textContent = oldRule
-      ? "Alterações salvas."
-      : favorite ? "Regra salva nos favoritos." : "Regra salva neste navegador.";
+    showToast(oldRule ? "Regra atualizada" : "Regra adicionada à fila",
+      oldRule ? "As alterações foram salvas." : "Será executada uma única vez quando o gatilho for atingido.",
+      "success");
     renderRules();
     renderQuotes();
     if (oldRule) selectView("rules");
@@ -300,6 +365,110 @@
     const write = () => chrome.storage.local.set({ [RULES_KEY]: snapshot });
     rulesWrite = rulesWrite.then(write, write);
     return rulesWrite;
+  }
+
+  function persistFavorites() {
+    const snapshot = favorites.map((favorite) => ({ ...favorite }));
+    const write = () => chrome.storage.local.set({ [FAVORITES_KEY]: snapshot });
+    favoritesWrite = favoritesWrite.then(write, write);
+    return favoritesWrite;
+  }
+
+  function createFavoriteTemplate(rule, name, sourceRuleId) {
+    return {
+      id: crypto.randomUUID(),
+      name,
+      market: rule.market,
+      quoteKey: rule.quoteKey,
+      outcome: rule.outcome,
+      side: rule.side,
+      trigger: rule.trigger || "reaches",
+      triggerCents: Number(rule.triggerCents ?? rule.limitCents),
+      orderLimitCents: Number(rule.orderLimitCents ?? rule.limitCents),
+      shares: rule.shares === undefined ? Number(rule.amount) : Number(rule.shares),
+      expiration: rule.expiration || "never",
+      mode: rule.mode || "notify",
+      ...(sourceRuleId ? { sourceRuleId } : {}),
+      createdAt: Date.now()
+    };
+  }
+
+  function openFavoriteDialog(draft, favorite = null) {
+    if (!draft && !favorite) return;
+    pendingFavorite = draft;
+    renamingFavoriteId = favorite?.id || null;
+    favoriteDialog.querySelector("#favorite-dialog-title").textContent = favorite ? "Renomear favorito" : "Salvar nos favoritos";
+    favoriteDialog.querySelector(".favorite-dialog-save").textContent = favorite ? "Salvar nome" : "Salvar favorito";
+    favoriteDialogInput.value = favorite
+      ? favorite.name
+      : `${draft.market} · ${draft.outcome} · ${draft.side === "buy" ? "Comprar" : "Vender"}`.slice(0, 60);
+    favoriteDialogBackdrop.hidden = false;
+    favoriteDialogInput.focus();
+    favoriteDialogInput.select();
+  }
+
+  function closeFavoriteDialog() {
+    favoriteDialogBackdrop.hidden = true;
+    pendingFavorite = null;
+    renamingFavoriteId = null;
+    favoriteDialog.reset();
+  }
+
+  async function saveFavoriteFromDialog(event) {
+    event.preventDefault();
+    const name = favoriteDialogInput.value.trim();
+    if (!name) {
+      favoriteDialogInput.setCustomValidity("Informe um nome para o favorito.");
+      favoriteDialogInput.reportValidity();
+      return;
+    }
+    favoriteDialogInput.setCustomValidity("");
+    const previous = favorites;
+    const isRenaming = Boolean(renamingFavoriteId);
+    if (isRenaming) {
+      favorites = favorites.map((favorite) => favorite.id === renamingFavoriteId ? { ...favorite, name } : favorite);
+    } else if (pendingFavorite) {
+      favorites = [...favorites, createFavoriteTemplate(pendingFavorite, name)];
+    } else {
+      return;
+    }
+    try {
+      await persistFavorites();
+      closeFavoriteDialog();
+      renderRules();
+      showToast(isRenaming ? "Favorito renomeado" : "Favorito salvo",
+        isRenaming ? "O nome do modelo foi atualizado." : "O modelo está disponível na aba Favoritos.",
+        "success");
+    } catch (error) {
+      favorites = previous;
+      showToast("Não foi possível salvar", error.message || String(error), "error");
+      renderRules();
+    }
+  }
+
+  function showToast(title, message, type = "success", timeout = 6500) {
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    const icon = document.createElement("span");
+    icon.className = "toast-icon";
+    icon.textContent = type === "error" ? "!" : type === "warning" ? "⚠" : "✓";
+    const content = document.createElement("div");
+    const heading = document.createElement("div");
+    heading.className = "toast-title";
+    heading.textContent = title;
+    const body = document.createElement("div");
+    body.className = "toast-message";
+    body.textContent = message;
+    content.append(heading, body);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "toast-close";
+    close.setAttribute("aria-label", "Fechar notificação");
+    close.textContent = "×";
+    close.addEventListener("click", () => toast.remove());
+    toast.append(icon, content, close);
+    toastStack.append(toast);
+    window.setTimeout(() => toast.remove(), timeout);
   }
 
   function selectView(viewName) {
@@ -323,8 +492,6 @@
   function resetRuleForm() {
     editingRuleId = null;
     form.reset();
-    statusElement.textContent = "";
-    statusElement.classList.remove("success");
     updateRuleFormMode();
     renderQuotes();
   }
@@ -738,7 +905,12 @@
   }
 
   function parseQuoteButton(button) {
-    const text = (button.innerText || button.textContent || "").replace(/\s+/g, " ").trim();
+    const text = [
+      button.innerText,
+      button.textContent,
+      button.getAttribute("aria-label"),
+      button.getAttribute("title")
+    ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
     const match = text.match(/\b(Up|Down)\s*([0-9]{1,3}(?:[.,][0-9]{1,2})?)\s*¢/i);
     if (!match) {
       return null;
@@ -793,6 +965,18 @@
   function scan() {
     const next = new Map();
     for (const button of document.querySelectorAll("button,[role='button']")) {
+      const label = [
+        button.innerText,
+        button.textContent,
+        button.getAttribute("aria-label"),
+        button.getAttribute("title")
+      ].filter(Boolean).join(" ");
+      if (!/\b(Up|Down)\s*[0-9]{1,3}(?:[.,][0-9]{1,2})?\s*¢/i.test(label)) {
+        continue;
+      }
+      if (!isVisible(button)) {
+        continue;
+      }
       const quote = parseQuoteButton(button);
       if (!quote) {
         continue;
@@ -828,7 +1012,7 @@
 
   function scheduleNextScan() {
     window.clearTimeout(scanTimer);
-    scanTimer = window.setTimeout(scan, 1000);
+    scanTimer = window.setTimeout(scan, 300);
   }
 
   function checkRules(quote, previous) {
@@ -855,7 +1039,7 @@
           rule.executionStatus = "failed";
           rule.executionMessage = `Não foi possível registrar a regra na fila; ela não foi executada: ${error.message || error}`;
         }
-        statusElement.textContent = "Falha ao salvar o estado da fila. Nenhuma nova regra foi executada.";
+        showToast("Falha ao salvar a fila", "Nenhuma nova regra foi executada. Confira o armazenamento local.", "error");
         renderRules();
       });
     }
@@ -885,7 +1069,7 @@
         } catch (error) {
           rule.executionStatus = "failed";
           rule.executionMessage = `Não foi possível registrar o início da execução; a regra não foi executada: ${error.message || error}`;
-          statusElement.textContent = rule.executionMessage;
+          showToast("Não foi possível iniciar a regra", rule.executionMessage, "error");
           renderRules();
           return;
         }
@@ -918,13 +1102,12 @@
           } catch (storageError) {
             rule.executionMessage += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
           }
-          statusElement.textContent = rule.executionMessage;
           renderRules();
           sendRuleNotification(`A regra não foi concluída: ${rule.executionMessage}`, "Execução não concluída");
         }
       }
     } catch (error) {
-      statusElement.textContent = `Não foi possível continuar a fila: ${error.message || error}`;
+      showToast("Falha na fila de regras", error.message || String(error), "error");
     } finally {
       queueWorkerRunning = false;
     }
@@ -1157,16 +1340,22 @@
       renderRules();
     });
     const message = `A tentativa automática não foi concluída: ${rule.executionMessage}`;
-    statusElement.textContent = message;
     sendRuleNotification(message, "Automação não concluída");
   }
 
   function sendRuleNotification(message, action) {
-    statusElement.textContent = message;
+    const isFailure = /falh|não foi concluída|não foi conclu[ií]da/i.test(action) || /não foi concluída|não foi executada/i.test(message);
+    showToast(action, message, isFailure ? "error" : "success", 9000);
     chrome.runtime.sendMessage({
       type: "POLYMAKR_NOTIFICATION",
       title: `Regra PolyMakr: ${action.toLowerCase()}`,
       message
+    }).then((response) => {
+      if (response?.error) {
+        showToast("Notificação do navegador indisponível", response.error, "warning");
+      }
+    }).catch((error) => {
+      showToast("Notificação do navegador indisponível", error.message || String(error), "warning");
     });
   }
 
@@ -1247,16 +1436,18 @@
   }
 
   function renderRules() {
-    renderRuleList(rulesElement, rules, "rules");
-    renderRuleList(favoritesElement, rules.filter((rule) => rule.favorite), "favorites");
+    renderRuleList(rulesElement, rules);
+    renderFavorites();
+    shadow.querySelector(".rules-count").textContent = String(rules.length);
+    shadow.querySelector(".favorites-count").textContent = String(favorites.length);
   }
 
-  function renderRuleList(container, list, view) {
+  function renderRuleList(container, list) {
     container.replaceChildren();
     if (list.length === 0) {
       const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = view === "favorites" ? "Nenhuma regra favorita ainda." : "Nenhuma regra criada ainda.";
+      empty.textContent = "Sua fila está vazia. Crie uma regra para acompanhar um preço.";
       container.append(empty);
       return;
     }
@@ -1264,97 +1455,165 @@
     for (const rule of list) {
       const row = document.createElement("div");
       row.className = "rule";
-      const details = document.createElement("div");
-      const title = document.createElement("div");
-      title.className = "rule-title";
       const triggerPrice = Number(rule.triggerCents ?? rule.limitCents);
       const orderPrice = Number(rule.orderLimitCents ?? rule.limitCents);
-      const action = document.createElement("span");
-      action.textContent = `${rule.side === "buy" ? "Comprar" : "Vender"} `;
-      const outcome = document.createElement("span");
-      outcome.className = rule.outcome.toLowerCase() === "down" ? "outcome-down" : "outcome-up";
-      outcome.textContent = rule.outcome;
-      const prices = document.createElement("span");
-      prices.textContent = ` · gatilho ${triggerPrice}¢ / ordem ${orderPrice}¢`;
-      title.append(action, outcome, prices);
-      const detail = document.createElement("div");
-      detail.className = "rule-detail";
       const size = rule.shares === undefined
         ? (rule.side === "buy" ? `US$ ${rule.amount}` : `${rule.amount} shares`)
         : `${rule.shares} shares`;
-      detail.textContent = `${rule.market} · ${size} · expira: Never`;
+      const state = rule.executionStatus || "monitoring";
+      const stateLabels = {
+        monitoring: "Monitorando",
+        queued: "Na fila",
+        processing: "Executando",
+        completed: "Concluída",
+        clicked: "Trade enviado",
+        failed: "Falhou"
+      };
+      const header = document.createElement("div");
+      header.className = "rule-header";
+      const heading = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "rule-title";
+      title.textContent = `${rule.side === "buy" ? "Comprar" : "Vender"} ${rule.outcome}`;
+      const subtitle = document.createElement("div");
+      subtitle.className = "rule-subtitle";
+      subtitle.textContent = rule.market;
+      heading.append(title, subtitle);
+      const chip = document.createElement("span");
+      chip.className = `state-chip ${state}`;
+      chip.textContent = stateLabels[state] || "Monitorando";
+      header.append(heading, chip);
+
+      const metrics = document.createElement("div");
+      metrics.className = "rule-metrics";
+      for (const [label, value] of [
+        ["Gatilho", `${triggerPrice}¢`],
+        ["Limite", `${orderPrice}¢`],
+        ["Quantidade", size]
+      ]) {
+        const metric = document.createElement("div");
+        metric.className = "rule-metric";
+        const metricLabel = document.createElement("span");
+        metricLabel.textContent = label;
+        const metricValue = document.createElement("strong");
+        metricValue.textContent = value;
+        metric.append(metricLabel, metricValue);
+        metrics.append(metric);
+      }
       const mode = document.createElement("div");
       mode.className = "rule-mode";
       mode.textContent = rule.executionMessage || modeLabel(rule.mode, rule.executionStatus);
-      details.append(title, detail, mode);
       const actions = document.createElement("div");
       actions.className = "rule-actions";
-      if (view === "favorites") {
-        const useTemplate = document.createElement("button");
-        useTemplate.type = "button";
-        useTemplate.className = "use-template";
-        useTemplate.textContent = "Usar modelo";
-        useTemplate.addEventListener("click", () => useRuleTemplate(rule));
-        actions.append(useTemplate);
-      } else {
-        const favorite = document.createElement("button");
-        favorite.type = "button";
-        favorite.className = "favorite";
-        favorite.textContent = rule.favorite ? "★ Favorita" : "☆ Favoritar";
-        favorite.addEventListener("click", () => updateFavorite(rule));
-        actions.append(favorite);
-        if (rule.executionStatus !== "queued" && rule.executionStatus !== "processing") {
-          const edit = document.createElement("button");
-          edit.type = "button";
-          edit.className = "edit";
-          edit.textContent = "Editar";
-          edit.addEventListener("click", () => editRule(rule));
-          actions.append(edit);
-        }
+      if (rule.executionStatus !== "queued" && rule.executionStatus !== "processing") {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.textContent = "Editar";
+        edit.addEventListener("click", () => editRule(rule));
+        actions.append(edit);
       }
-
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "delete";
-      remove.textContent = view === "favorites" ? "Desfavoritar" : "Remover";
+      remove.textContent = "Remover da fila";
       remove.addEventListener("click", async () => {
-        if (view === "favorites") {
-          await updateFavorite(rule, false);
-          return;
-        }
         const previous = rules;
         rules = rules.filter((item) => item.id !== rule.id);
         try {
           await persistRules();
           renderRules();
+          showToast("Regra removida", "A regra foi removida da fila e do histórico.", "success");
         } catch (error) {
           rules = previous;
-          statusElement.textContent = `Não foi possível remover a regra: ${error.message || error}`;
+          showToast("Não foi possível remover", error.message || String(error), "error");
           renderRules();
         }
       });
       actions.append(remove);
-      row.append(details, actions);
+      row.append(header, metrics, mode, actions);
       container.append(row);
     }
   }
 
-  async function updateFavorite(rule, favorite = !rule.favorite) {
-    const previous = rule.favorite;
-    rule.favorite = favorite;
+  function renderFavorites() {
+    favoritesElement.replaceChildren();
+    if (favorites.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Nenhum modelo salvo. Use o botão Favoritar na criação para guardar um modelo.";
+      favoritesElement.append(empty);
+      return;
+    }
+
+    for (const favorite of favorites) {
+      const card = document.createElement("article");
+      card.className = "template";
+      const header = document.createElement("div");
+      header.className = "template-header";
+      const heading = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "template-title";
+      title.textContent = favorite.name;
+      const subtitle = document.createElement("div");
+      subtitle.className = "template-subtitle";
+      subtitle.textContent = `${favorite.market} · ${favorite.side === "buy" ? "Comprar" : "Vender"} ${favorite.outcome}`;
+      heading.append(title, subtitle);
+      header.append(heading);
+      const details = document.createElement("div");
+      details.className = "rule-metrics";
+      for (const [label, value] of [
+        ["Gatilho", `${Number(favorite.triggerCents ?? favorite.limitCents)}¢`],
+        ["Limite", `${Number(favorite.orderLimitCents ?? favorite.limitCents)}¢`],
+        ["Quantidade", `${favorite.shares ?? favorite.amount} shares`]
+      ]) {
+        const metric = document.createElement("div");
+        metric.className = "rule-metric";
+        const metricLabel = document.createElement("span");
+        metricLabel.textContent = label;
+        const metricValue = document.createElement("strong");
+        metricValue.textContent = value;
+        metric.append(metricLabel, metricValue);
+        details.append(metric);
+      }
+      const actions = document.createElement("div");
+      actions.className = "template-actions";
+      const use = document.createElement("button");
+      use.type = "button";
+      use.className = "use-template";
+      use.textContent = "Usar modelo";
+      use.addEventListener("click", () => useRuleTemplate(favorite));
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.textContent = "Renomear";
+      rename.addEventListener("click", () => openFavoriteDialog(null, favorite));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "delete";
+      remove.textContent = "Excluir favorito";
+      remove.addEventListener("click", () => removeFavorite(favorite));
+      actions.append(use, rename, remove);
+      card.append(header, details, actions);
+      favoritesElement.append(card);
+    }
+  }
+
+  async function removeFavorite(favorite) {
+    const previous = favorites;
+    favorites = favorites.filter((item) => item.id !== favorite.id);
     try {
-      await persistRules();
+      await persistFavorites();
       renderRules();
+      showToast("Favorito excluído", "As regras da fila não foram alteradas.", "success");
     } catch (error) {
-      rule.favorite = previous;
-      statusElement.textContent = `Não foi possível salvar o favorito: ${error.message || error}`;
+      favorites = previous;
+      showToast("Não foi possível excluir", error.message || String(error), "error");
       renderRules();
     }
   }
 
   function editRule(rule) {
     if (rule.executionStatus === "queued" || rule.executionStatus === "processing") {
-      statusElement.textContent = "Não é possível editar uma regra que está na fila ou em execução.";
+      showToast("Regra em execução", "Não é possível editar uma regra que está na fila ou em execução.", "warning");
       return;
     }
     resetRuleForm();
@@ -1368,9 +1627,9 @@
     form.elements.mode.value = rule.mode || "notify";
     renderQuotes();
     updateRuleFormMode();
-    statusElement.textContent = rule.executionStatus
+    showToast("Editando regra", rule.executionStatus
       ? "A regra já foi executada; editar não a reativa."
-      : "Edite os campos e salve para atualizar a regra.";
+      : "Edite os campos e salve para atualizar a regra.", "success");
     selectView("create");
   }
 
@@ -1389,10 +1648,9 @@
     form.elements.expiration.value = rule.expiration || "never";
     form.elements.mode.value = rule.mode || "notify";
     renderQuotes();
-    statusElement.classList.add("success");
-    statusElement.textContent = quotes.some((quote) => quote.key === rule.quoteKey)
+    showToast("Modelo carregado", quotes.some((quote) => quote.key === rule.quoteKey)
       ? "Modelo carregado. Salve para criar uma nova regra."
-      : "Modelo carregado. Selecione o mercado atual antes de salvar.";
+      : "Selecione o mercado atual antes de salvar.", "success");
     panel.classList.add("open");
     backdrop.classList.add("open");
     selectView("create");
@@ -1421,5 +1679,11 @@
   }
 
   const observer = new MutationObserver(updateOnMutation);
-  observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+  observer.observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ["aria-label", "title", "data-price"]
+  });
 })();
