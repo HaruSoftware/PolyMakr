@@ -26,7 +26,11 @@
         "https://*.polymarket.com/*"
       ],
       "js": [
-        "content.js"
+        "scripts/content/rules.js",
+        "scripts/content/polymarket.js",
+        "scripts/content/execution.js",
+        "scripts/content/views.js",
+        "scripts/content/bootstrap.js"
       ],
       "run_at": "document_idle"
     }
