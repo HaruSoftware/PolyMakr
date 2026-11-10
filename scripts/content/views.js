@@ -9,8 +9,8 @@ function renderQuotes() {
   quoteOptions.replaceChildren();
 
   if (quotes.length === 0 && !editingRule) {
-    quoteSelect.add(new Option("Aguardando preços…", ""));
-    quoteOptions.innerHTML = '<p class="empty">Abra o painel de negociação de um mercado para identificar os preços Up/Down.</p>';
+    quoteSelect.add(new Option("Aguardando mercado…", ""));
+    quoteOptions.innerHTML = '<p class="empty">Abra o painel de negociação de um mercado para selecionar Up/Down.</p>';
     return;
   }
 
@@ -36,9 +36,7 @@ function renderQuotes() {
       const choice = document.createElement("button");
       choice.type = "button";
       choice.className = `outcome-choice ${outcome.toLowerCase()}`;
-      choice.textContent = quote
-        ? `${outcome} · ${quote.side === "sell" ? "Sell" : "Buy"} ${quote.price.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}¢`
-        : outcome;
+      choice.textContent = outcome;
       choice.setAttribute("aria-pressed", String(Boolean(quote && quote.key === selectedQuoteKey)));
       choice.disabled = !quote || Boolean(quote.unavailable);
       if (quote && !quote.unavailable) {
@@ -58,16 +56,16 @@ function renderQuotes() {
   if (quotes.some((quote) => quote.key === selectedQuoteKey)) {
     quoteSelect.value = selectedQuoteKey;
   }
-  if (!editingRule && quotes[0]?.side) form.elements.side.value = quotes[0].side;
 }
 
 function renderRules() {
-  const queuedRules = rules.filter((rule) => rule.queuePolicy !== "independent");
-  const immediateRules = rules.filter((rule) => rule.queuePolicy === "independent");
+  const marketRules = rules.filter((rule) => rule.marketKey === activeMarketKey);
+  const queuedRules = marketRules.filter((rule) => rule.queuePolicy !== "independent");
+  const immediateRules = marketRules.filter((rule) => rule.queuePolicy === "independent");
   renderRuleList(queueRulesElement, queuedRules, "ordered");
   renderRuleList(immediateRulesElement, immediateRules, "independent");
   renderFavorites();
-  shadow.querySelector(".rules-count").textContent = String(rules.length);
+  shadow.querySelector(".rules-count").textContent = String(marketRules.length);
   shadow.querySelector('[data-lane="ordered"] .lane-count').textContent = String(queuedRules.length);
   shadow.querySelector('[data-lane="independent"] .lane-count').textContent = String(immediateRules.length);
   shadow.querySelector('[data-lane="favorites"] .lane-count').textContent = String(favorites.length);
@@ -494,7 +492,12 @@ async function moveRuleToLane(rule, queuePolicy, targetRuleId, insertAfter = fal
 }
 
 async function activateFavorite(favorite, queuePolicy, targetRuleId, insertAfter = false) {
+  if (!activeMarketKey) {
+    showToast("Mercado não identificado", "Abra o painel de negociação do mercado em que deseja criar a regra.", "warning");
+    return;
+  }
   const rule = {
+    marketKey: activeMarketKey,
     outcome: favorite.outcome,
     side: favorite.side,
     trigger: favorite.trigger || "reaches",
@@ -555,7 +558,6 @@ async function editRule(rule) {
   resetRuleForm();
   editingRuleId = rule.id;
   form.elements.side.value = rule.side;
-  selectNativeTradeSide(rule.side);
   form.elements.trigger.value = rule.trigger || "reaches";
   form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
   form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);
@@ -579,7 +581,6 @@ function useRuleTemplate(rule) {
     || quotes[0]?.key
     || "";
   form.elements.side.value = rule.side;
-  selectNativeTradeSide(rule.side);
   form.elements.trigger.value = rule.trigger || "reaches";
   form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
   form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);

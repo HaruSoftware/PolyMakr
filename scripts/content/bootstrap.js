@@ -239,7 +239,6 @@ let rules = [];
 let favorites = [];
 let quotes = [];
 let activeMarketKey = "";
-let activeQuoteSide = "";
 let executionStates = {};
 let editingRuleId = null;
 let pendingFavorite = null;
@@ -328,10 +327,19 @@ migrateMarketAgnosticStorage().then(async (stored) => {
   renderRules();
   if (migratedFavorites) {
     try {
-      await Promise.all([
-        persistRules(),
-        persistFavorites()
-      ]);
+      await navigator.locks.request("polymakr-rules-storage", async () => {
+        const stored = await chrome.storage.local.get(RULES_KEY);
+        const storedRules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
+        const cleanedRules = storedRules.map((rule) => {
+          if (!rule.favorite) return rule;
+          const cleanRule = { ...rule };
+          delete cleanRule.favorite;
+          return cleanRule;
+        });
+        await chrome.storage.local.set({ [RULES_KEY]: cleanedRules });
+        rules = cleanedRules;
+      });
+      await persistFavorites();
     } catch (error) {
       showToast("Falha ao atualizar dados locais", error.message || String(error), "error");
     }
@@ -350,12 +358,6 @@ form.addEventListener("submit", async (event) => {
   }
   await saveRule(data, form, "notify");
 });
-form.elements.side.addEventListener("change", () => {
-  if (!selectNativeTradeSide(form.elements.side.value)) {
-    showToast("Não foi possível selecionar o lado", "O painel de negociação não identificou Buy/Sell com segurança.", "warning");
-  }
-});
-
 const observer = new MutationObserver(updateOnMutation);
 observer.observe(document.documentElement, {
   subtree: true,

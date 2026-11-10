@@ -67,7 +67,7 @@ function syncAutoTradeTab() {
       </style>
       <section class="auto" aria-label="Criar automação PolyMakr">
         <div class="heading"><strong>Automação</strong><span>Ordem limite</span></div>
-        <div class="prices" aria-label="Resultados e preços"></div>
+        <div class="prices" aria-label="Selecionar resultado"></div>
         <form>
           <select name="quote" aria-label="Resultado" hidden></select>
           <div class="row">
@@ -81,7 +81,7 @@ function syncAutoTradeTab() {
           <label>Ordem de execução<select name="queuePolicy"><option value="ordered">Respeitar a fila</option><option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option></select></label>
           <button class="save" type="submit">Salvar automação</button>
           <p class="status" role="status"></p>
-          <p class="hint">A regra seleciona <span class="side-label">Buy</span> e envia uma ordem limite quando o gatilho for atingido.</p>
+          <p class="hint">O gatilho é definido manualmente; ao atingi-lo, a regra envia uma ordem limite no mercado desta página.</p>
         </form>
       </section>`;
 
@@ -122,8 +122,6 @@ function syncAutoTradeTab() {
     lastNativeTradeSide = siteSide;
   }
   renderInlineAutoQuotes();
-  const activeSide = normalizedText(lastNativeTradeSide || siteSide) === "sell" ? "Sell" : "Buy";
-  inlineAutoRoot.querySelector(".side-label").textContent = `Preço de ${activeSide === "Sell" ? "venda" : "compra"}`;
   setAutoMode(autoModeActive, sideGroup);
 }
 
@@ -328,28 +326,6 @@ function findTradeSideGroup(tradingPanel) {
   return null;
 }
 
-function selectNativeTradeSide(side) {
-  if (!["buy", "sell"].includes(side)) return false;
-  const tradingPanel = findTradingPanelElement();
-  const sideGroup = tradingPanel && findTradeSideGroup(tradingPanel);
-  const control = sideGroup && findExactControl(sideGroup, side === "buy" ? "Buy" : "Sell");
-  if (!control) return false;
-  if (control.getAttribute("aria-checked") !== "true") control.click();
-  lastNativeTradeSide = control;
-  return control.getAttribute("aria-checked") === "true";
-}
-
-function getSelectedTradeSide(tradingPanel) {
-  const sideGroup = findTradeSideGroup(tradingPanel);
-  if (!sideGroup) return "";
-  const selected = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")]
-    .filter((button) => button.getAttribute("aria-checked") === "true");
-  if (selected.length === 1) return normalizedText(selected[0]);
-  return autoModeActive && lastNativeTradeSide?.isConnected
-    ? normalizedText(lastNativeTradeSide)
-    : "";
-}
-
 function findOutcomeGroup(tradingPanel) {
   const groups = [...tradingPanel.querySelectorAll("[role='radiogroup']")]
     .filter((group) => {
@@ -363,14 +339,13 @@ function findOutcomeGroup(tradingPanel) {
 function getInlineQuotes() {
   const tradingPanel = findTradingPanelElement();
   const outcomeGroup = tradingPanel && findOutcomeGroup(tradingPanel);
-  const side = tradingPanel && getSelectedTradeSide(tradingPanel);
-  if (!outcomeGroup || !["buy", "sell"].includes(side)) {
+  if (!outcomeGroup) {
     return [];
   }
   const quotes = [...outcomeGroup.querySelectorAll("button,[role='radio']")]
     .map((button) => {
       const quote = parseQuoteButton(button);
-      return quote ? { ...quote, side, element: button } : null;
+      return quote ? { ...quote, element: button } : null;
     })
     .filter(Boolean);
   const marketKeys = new Set(quotes.map((quote) => quote.key.slice(0, quote.key.lastIndexOf("|"))));
@@ -397,24 +372,23 @@ function renderInlineAutoQuotes() {
   quoteSelect.replaceChildren();
 
   if (currentQuotes.length === 0) {
-    quoteSelect.add(new Option("Aguardando preços…", ""));
+    quoteSelect.add(new Option("Aguardando mercado…", ""));
     return;
   }
 
   for (const quote of currentQuotes) {
-    const option = new Option(`${quote.outcome} · ${quote.price}¢`, quote.key);
+    const option = new Option(quote.outcome, quote.key);
     quoteSelect.add(option);
 
     const priceButton = document.createElement("button");
     priceButton.type = "button";
     priceButton.className = `price ${quote.outcome.toLowerCase()}`;
-    priceButton.textContent = `${quote.outcome} · ${quote.side === "sell" ? "Sell" : "Buy"} ${quote.price}¢`;
-    priceButton.setAttribute("aria-label", `${quote.side === "sell" ? "Preço de venda" : "Preço de compra"} ${quote.outcome}: ${quote.price}¢`);
+    priceButton.textContent = quote.outcome;
+    priceButton.setAttribute("aria-label", quote.outcome);
     priceButton.setAttribute("aria-pressed", String(quote.key === (selectedKey || selectedNativeQuote?.key)));
     priceButton.addEventListener("click", () => {
       quoteSelect.value = quote.key;
       selectNativeQuote(quote.key);
-      updateAutoPriceDefaults();
       renderInlineAutoQuotes();
     });
     prices.append(priceButton);
@@ -423,27 +397,12 @@ function renderInlineAutoQuotes() {
   quoteSelect.value = currentQuotes.some((quote) => quote.key === selectedKey)
     ? selectedKey
     : selectedNativeQuote?.key || currentQuotes[0].key;
-  updateAutoPriceDefaults();
 }
 
 function selectNativeQuote(quoteKey) {
   const quote = getInlineQuotes().find((item) => item.key === quoteKey);
   if (quote && quote.element.getAttribute("aria-checked") !== "true") {
     quote.element.click();
-  }
-}
-
-function updateAutoPriceDefaults() {
-  const quoteKey = inlineAutoForm?.querySelector('[name="quote"]').value;
-  const quote = getInlineQuotes().find((item) => item.key === quoteKey);
-  if (!quote) {
-    return;
-  }
-  for (const name of ["triggerCents", "orderLimitCents"]) {
-    const input = inlineAutoForm.querySelector(`[name="${name}"]`);
-    if (!input.dataset.edited || !input.value) {
-      input.value = String(quote.price);
-    }
   }
 }
 
@@ -492,15 +451,18 @@ function findCard(button) {
 
   const link = candidate.querySelector("a[href*='/event/'],a[href*='/market/']");
   const heading = candidate.querySelector("h1,h2,h3,h4,[role='heading']");
-  const eventPage = location.pathname.match(/^\/event\/[^/]+/i)?.[0];
   const pageTitle = (document.querySelector("h1")?.innerText || "").replace(/\s+/g, " ").trim();
   const linkTitle = (link?.innerText || "").replace(/\s+/g, " ").trim();
   const localHeading = (heading?.innerText || "").replace(/\s+/g, " ").trim();
-  const market = (eventPage && pageTitle)
-    || linkTitle
+  const market = linkTitle
     || localHeading
     || pageTitle
     || document.title;
-  const key = eventPage || link?.getAttribute("href") || market.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const marketPaths = [location.pathname, link?.getAttribute("href")]
+    .filter(Boolean)
+    .map((path) => new URL(path, location.origin).pathname.replace(/\/+$/, ""));
+  const key = marketPaths.sort((left, right) =>
+    right.split("/").length - left.split("/").length
+  )[0] || market.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return { market: market.slice(0, 100), key };
 }

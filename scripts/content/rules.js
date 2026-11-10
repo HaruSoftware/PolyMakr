@@ -15,20 +15,17 @@ function createRuleDraft(data, defaultMode = "notify") {
   const orderLimitCents = Number(data.get("orderLimitCents"));
   const shares = Number(data.get("shares"));
   const side = data.get("side");
-  if (!quote
+  if (!activeMarketKey || !quote
     || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
     || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
     || !Number.isFinite(shares) || shares < 0.01
     || !["buy", "sell"].includes(side)) {
-    showToast("Confira os dados da regra", "Abra o painel de negociação de um mercado ativo e informe preços e quantidade válidos.", "error");
-    return null;
-  }
-  if (quote.side !== side) {
-    showToast("Cotação de outro lado", `A cotação exibida é de ${quote.side === "sell" ? "venda" : "compra"}. Selecione ${side === "sell" ? "Sell" : "Buy"} para usar o preço correspondente.`, "warning");
+    showToast("Confira os dados da regra", "Abra o painel de negociação do mercado em que deseja usar esta regra e informe gatilho, preço limite e quantidade válidos.", "error");
     return null;
   }
 
   return {
+    marketKey: activeMarketKey,
     outcome: quote.outcome,
     side,
     trigger: data.get("trigger"),
@@ -46,7 +43,7 @@ async function saveRule(data, ruleForm, defaultMode) {
   if (!draft) return;
   const oldRule = editingRuleId && rules.find((item) => item.id === editingRuleId);
   const rule = oldRule
-    ? { ...oldRule, ...draft }
+    ? { ...oldRule, ...draft, marketKey: oldRule.marketKey }
     : { ...draft, id: crypto.randomUUID(), enabled: true, createdAt: Date.now() };
   delete rule.favorite;
   if (oldRule) {
@@ -72,7 +69,7 @@ async function saveRule(data, ruleForm, defaultMode) {
   editingRuleId = null;
   updateRuleFormMode();
   showToast(oldRule ? "Regra atualizada" : "Regra adicionada à fila",
-    oldRule ? "As alterações foram salvas." : "Será aplicada uma vez por mercado quando o gatilho for atingido.",
+    oldRule ? "As alterações foram salvas." : "Será executada uma vez neste mercado quando o gatilho manual for atingido.",
     "success");
   renderRules();
   renderQuotes();
@@ -81,7 +78,18 @@ async function saveRule(data, ruleForm, defaultMode) {
 
 function persistRules() {
   const snapshot = rules.map((rule) => ({ ...rule }));
-  const write = () => chrome.storage.local.set({ [RULES_KEY]: snapshot });
+  const marketKey = activeMarketKey;
+  const write = () => navigator.locks.request("polymakr-rules-storage", async () => {
+    if (!marketKey) throw new Error("Não foi possível identificar o mercado desta página.");
+    const stored = await chrome.storage.local.get(RULES_KEY);
+    const currentRules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
+    const nextRules = [
+      ...currentRules.filter((rule) => rule.marketKey !== marketKey),
+      ...snapshot.filter((rule) => rule.marketKey === marketKey)
+    ];
+    await chrome.storage.local.set({ [RULES_KEY]: nextRules });
+    rules = nextRules;
+  });
   rulesWrite = rulesWrite.then(write, write);
   return rulesWrite;
 }

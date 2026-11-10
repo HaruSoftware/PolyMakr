@@ -1,18 +1,13 @@
 async function scan() {
   const activeQuotes = getInlineQuotes();
   const marketKeys = new Set(activeQuotes.map(quoteMarketKey));
-  const activeSides = new Set(activeQuotes.map((quote) => quote.side));
   const nextMarketKey = marketKeys.size === 1 ? [...marketKeys][0] : "";
-  const nextSide = activeSides.size === 1 ? [...activeSides][0] : "";
-  const next = new Map((marketKeys.size === 1 && activeSides.size === 1 ? activeQuotes : [])
-    .map((quote) => [quote.key, quote]));
+  const next = new Map((marketKeys.size === 1 ? activeQuotes : []).map((quote) => [quote.key, quote]));
   const marketChanged = nextMarketKey !== activeMarketKey;
-  const quoteContextChanged = marketChanged || nextSide !== activeQuoteSide;
 
   quotes = marketKeys.size === 1 ? [...next.values()] : [];
-  if (quoteContextChanged) {
+  if (marketChanged) {
     activeMarketKey = nextMarketKey;
-    activeQuoteSide = nextSide;
     previousPrices.clear();
     try {
       executionStates = activeMarketKey ? await loadExecutionStates(activeMarketKey) : {};
@@ -26,7 +21,7 @@ async function scan() {
 
   for (const [key, quote] of next) {
     const previous = previousPrices.get(key);
-    if (!quoteContextChanged && previous !== undefined && previous !== quote.price) {
+    if (!marketChanged && previous !== undefined && previous !== quote.price) {
       await checkRules(quote, previous);
     }
   }
@@ -92,7 +87,7 @@ async function migrateMarketAgnosticStorage() {
   }
   return navigator.locks.request("polymakr-market-rule-migration", async () => {
     const allStored = await chrome.storage.local.get(null);
-    if (allStored[EXECUTION_SCHEMA_KEY] === 1) return allStored;
+    if (allStored[EXECUTION_SCHEMA_KEY] === 2) return allStored;
 
     const migratedRules = Array.isArray(allStored[RULES_KEY]) ? allStored[RULES_KEY] : [];
     const migratedFavorites = Array.isArray(allStored[FAVORITES_KEY]) ? allStored[FAVORITES_KEY] : [];
@@ -100,6 +95,7 @@ async function migrateMarketAgnosticStorage() {
     for (const rule of migratedRules) {
       if (rule.quoteKey) {
         const marketKey = rule.quoteKey.slice(0, rule.quoteKey.lastIndexOf("|"));
+        rule.marketKey = rule.marketKey || marketKey;
         const storageKey = executionStorageKey(marketKey);
         const states = changes[storageKey] || allStored[storageKey] || {};
         if (rule.executionStatus) {
@@ -126,7 +122,7 @@ async function migrateMarketAgnosticStorage() {
     }
     changes[RULES_KEY] = migratedRules;
     changes[FAVORITES_KEY] = migratedFavorites;
-    changes[EXECUTION_SCHEMA_KEY] = 1;
+    changes[EXECUTION_SCHEMA_KEY] = 2;
     await chrome.storage.local.set(changes);
     return { ...allStored, ...changes };
   });
@@ -153,7 +149,7 @@ async function checkRules(quote, previous) {
     const triggered = [];
     for (const rule of rules) {
       if (rule.enabled === false || states[rule.id]?.status
-        || rule.outcome !== quote.outcome || rule.side !== quote.side) continue;
+        || rule.marketKey !== marketKey || rule.outcome !== quote.outcome) continue;
       const limit = Number(rule.triggerCents ?? rule.limitCents);
       const crossed = rule.trigger === "rises"
         ? previous < limit && quote.price >= limit
@@ -207,7 +203,7 @@ async function processQueuedRulesLocked(marketKey, states) {
   while (true) {
     const rule = findNextQueuedRule(states);
     if (!rule) return;
-    const quote = quotes.find((item) => item.outcome === rule.outcome && item.side === rule.side);
+    const quote = quotes.find((item) => item.outcome === rule.outcome);
     if (!quote || quoteMarketKey(quote) !== marketKey) return;
 
     states[rule.id] = {
@@ -275,18 +271,20 @@ function findNextQueuedRule(states) {
   const independentRule = rules.find((rule) =>
     rule.enabled !== false
     && rule.queuePolicy === "independent"
+    && rule.marketKey === activeMarketKey
     && states[rule.id]?.status === "queued"
-    && quotes.some((quote) => quote.outcome === rule.outcome && quote.side === rule.side)
+    && quotes.some((quote) => quote.outcome === rule.outcome)
   );
   if (independentRule) return independentRule;
 
   const firstOrderedRule = rules.find((rule) =>
     rule.enabled !== false
+    && rule.marketKey === activeMarketKey
     && rule.queuePolicy !== "independent"
     && !["completed", "failed", "clicked"].includes(states[rule.id]?.status)
   );
   return states[firstOrderedRule?.id]?.status === "queued"
-    && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome && quote.side === firstOrderedRule.side)
+    && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome)
     ? firstOrderedRule
     : null;
 }
