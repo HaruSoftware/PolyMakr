@@ -1,13 +1,18 @@
 async function scan() {
   const activeQuotes = getInlineQuotes();
   const marketKeys = new Set(activeQuotes.map(quoteMarketKey));
+  const activeSides = new Set(activeQuotes.map((quote) => quote.side));
   const nextMarketKey = marketKeys.size === 1 ? [...marketKeys][0] : "";
-  const next = new Map((marketKeys.size === 1 ? activeQuotes : []).map((quote) => [quote.key, quote]));
+  const nextSide = activeSides.size === 1 ? [...activeSides][0] : "";
+  const next = new Map((marketKeys.size === 1 && activeSides.size === 1 ? activeQuotes : [])
+    .map((quote) => [quote.key, quote]));
   const marketChanged = nextMarketKey !== activeMarketKey;
+  const quoteContextChanged = marketChanged || nextSide !== activeQuoteSide;
 
   quotes = marketKeys.size === 1 ? [...next.values()] : [];
-  if (marketChanged) {
+  if (quoteContextChanged) {
     activeMarketKey = nextMarketKey;
+    activeQuoteSide = nextSide;
     previousPrices.clear();
     try {
       executionStates = activeMarketKey ? await loadExecutionStates(activeMarketKey) : {};
@@ -21,7 +26,7 @@ async function scan() {
 
   for (const [key, quote] of next) {
     const previous = previousPrices.get(key);
-    if (!marketChanged && previous !== undefined && previous !== quote.price) {
+    if (!quoteContextChanged && previous !== undefined && previous !== quote.price) {
       await checkRules(quote, previous);
     }
   }
@@ -147,7 +152,8 @@ async function checkRules(quote, previous) {
     const states = await loadExecutionStates(marketKey);
     const triggered = [];
     for (const rule of rules) {
-      if (rule.enabled === false || states[rule.id]?.status || rule.outcome !== quote.outcome) continue;
+      if (rule.enabled === false || states[rule.id]?.status
+        || rule.outcome !== quote.outcome || rule.side !== quote.side) continue;
       const limit = Number(rule.triggerCents ?? rule.limitCents);
       const crossed = rule.trigger === "rises"
         ? previous < limit && quote.price >= limit
@@ -201,7 +207,7 @@ async function processQueuedRulesLocked(marketKey, states) {
   while (true) {
     const rule = findNextQueuedRule(states);
     if (!rule) return;
-    const quote = quotes.find((item) => item.outcome === rule.outcome);
+    const quote = quotes.find((item) => item.outcome === rule.outcome && item.side === rule.side);
     if (!quote || quoteMarketKey(quote) !== marketKey) return;
 
     states[rule.id] = {
@@ -270,7 +276,7 @@ function findNextQueuedRule(states) {
     rule.enabled !== false
     && rule.queuePolicy === "independent"
     && states[rule.id]?.status === "queued"
-    && quotes.some((quote) => quote.outcome === rule.outcome)
+    && quotes.some((quote) => quote.outcome === rule.outcome && quote.side === rule.side)
   );
   if (independentRule) return independentRule;
 
@@ -280,7 +286,7 @@ function findNextQueuedRule(states) {
     && !["completed", "failed", "clicked"].includes(states[rule.id]?.status)
   );
   return states[firstOrderedRule?.id]?.status === "queued"
-    && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome)
+    && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome && quote.side === firstOrderedRule.side)
     ? firstOrderedRule
     : null;
 }

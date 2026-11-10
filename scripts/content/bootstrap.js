@@ -239,6 +239,7 @@ let rules = [];
 let favorites = [];
 let quotes = [];
 let activeMarketKey = "";
+let activeQuoteSide = "";
 let executionStates = {};
 let editingRuleId = null;
 let pendingFavorite = null;
@@ -348,6 +349,11 @@ form.addEventListener("submit", async (event) => {
     return;
   }
   await saveRule(data, form, "notify");
+});
+form.elements.side.addEventListener("change", () => {
+  if (!selectNativeTradeSide(form.elements.side.value)) {
+    showToast("Não foi possível selecionar o lado", "O painel de negociação não identificou Buy/Sell com segurança.", "warning");
+  }
 });
 
 const observer = new MutationObserver(updateOnMutation);

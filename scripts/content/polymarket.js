@@ -122,8 +122,8 @@ function syncAutoTradeTab() {
     lastNativeTradeSide = siteSide;
   }
   renderInlineAutoQuotes();
-  inlineAutoRoot.querySelector(".side-label").textContent =
-    normalizedText(lastNativeTradeSide || siteSide) === "sell" ? "Sell" : "Buy";
+  const activeSide = normalizedText(lastNativeTradeSide || siteSide) === "sell" ? "Sell" : "Buy";
+  inlineAutoRoot.querySelector(".side-label").textContent = `Preço de ${activeSide === "Sell" ? "venda" : "compra"}`;
   setAutoMode(autoModeActive, sideGroup);
 }
 
@@ -328,6 +328,28 @@ function findTradeSideGroup(tradingPanel) {
   return null;
 }
 
+function selectNativeTradeSide(side) {
+  if (!["buy", "sell"].includes(side)) return false;
+  const tradingPanel = findTradingPanelElement();
+  const sideGroup = tradingPanel && findTradeSideGroup(tradingPanel);
+  const control = sideGroup && findExactControl(sideGroup, side === "buy" ? "Buy" : "Sell");
+  if (!control) return false;
+  if (control.getAttribute("aria-checked") !== "true") control.click();
+  lastNativeTradeSide = control;
+  return control.getAttribute("aria-checked") === "true";
+}
+
+function getSelectedTradeSide(tradingPanel) {
+  const sideGroup = findTradeSideGroup(tradingPanel);
+  if (!sideGroup) return "";
+  const selected = [...findExactControls(sideGroup, "Buy"), ...findExactControls(sideGroup, "Sell")]
+    .filter((button) => button.getAttribute("aria-checked") === "true");
+  if (selected.length === 1) return normalizedText(selected[0]);
+  return autoModeActive && lastNativeTradeSide?.isConnected
+    ? normalizedText(lastNativeTradeSide)
+    : "";
+}
+
 function findOutcomeGroup(tradingPanel) {
   const groups = [...tradingPanel.querySelectorAll("[role='radiogroup']")]
     .filter((group) => {
@@ -341,13 +363,14 @@ function findOutcomeGroup(tradingPanel) {
 function getInlineQuotes() {
   const tradingPanel = findTradingPanelElement();
   const outcomeGroup = tradingPanel && findOutcomeGroup(tradingPanel);
-  if (!outcomeGroup) {
+  const side = tradingPanel && getSelectedTradeSide(tradingPanel);
+  if (!outcomeGroup || !["buy", "sell"].includes(side)) {
     return [];
   }
   const quotes = [...outcomeGroup.querySelectorAll("button,[role='radio']")]
     .map((button) => {
       const quote = parseQuoteButton(button);
-      return quote ? { ...quote, element: button } : null;
+      return quote ? { ...quote, side, element: button } : null;
     })
     .filter(Boolean);
   const marketKeys = new Set(quotes.map((quote) => quote.key.slice(0, quote.key.lastIndexOf("|"))));
@@ -385,7 +408,8 @@ function renderInlineAutoQuotes() {
     const priceButton = document.createElement("button");
     priceButton.type = "button";
     priceButton.className = `price ${quote.outcome.toLowerCase()}`;
-    priceButton.textContent = `${quote.outcome} ${quote.price}¢`;
+    priceButton.textContent = `${quote.outcome} · ${quote.side === "sell" ? "Sell" : "Buy"} ${quote.price}¢`;
+    priceButton.setAttribute("aria-label", `${quote.side === "sell" ? "Preço de venda" : "Preço de compra"} ${quote.outcome}: ${quote.price}¢`);
     priceButton.setAttribute("aria-pressed", String(quote.key === (selectedKey || selectedNativeQuote?.key)));
     priceButton.addEventListener("click", () => {
       quoteSelect.value = quote.key;

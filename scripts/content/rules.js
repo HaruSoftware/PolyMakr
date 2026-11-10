@@ -23,6 +23,10 @@ function createRuleDraft(data, defaultMode = "notify") {
     showToast("Confira os dados da regra", "Abra o painel de negociação de um mercado ativo e informe preços e quantidade válidos.", "error");
     return null;
   }
+  if (quote.side !== side) {
+    showToast("Cotação de outro lado", `A cotação exibida é de ${quote.side === "sell" ? "venda" : "compra"}. Selecione ${side === "sell" ? "Sell" : "Buy"} para usar o preço correspondente.`, "warning");
+    return null;
+  }
 
   return {
     outcome: quote.outcome,
@@ -206,6 +210,7 @@ function updateRuleFormMode() {
 function resetRuleForm() {
   editingRuleId = null;
   form.reset();
+  form.elements.side.value = quotes[0]?.side || "buy";
   updateRuleFormMode();
   renderQuotes();
 }

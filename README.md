@@ -20,13 +20,13 @@ Os scripts de conteúdo são JavaScript clássico, carregados na ordem declarada
 2. Selecione **Carregar sem compactação** e escolha a pasta deste projeto.
 3. Abra ou recarregue uma página de mercado no Polymarket.
 4. Clique no ícone da extensão e selecione **Abrir painel na página** para abrir a janela centralizada.
-5. Na aba **Criar**, selecione Up/Down no painel de negociação do mercado ativo. As regras e os favoritos não ficam vinculados a esse mercado: ao abrir outro mercado com o painel de negociação disponível, o PolyMakr identifica seus preços e aplica as mesmas regras.
+5. Na aba **Criar**, selecione Buy ou Sell no painel de negociação e escolha Up/Down. Os botões mostram o lado da cotação lida na página. As regras e os favoritos não ficam vinculados a um mercado: ao abrir outro mercado com o painel de negociação disponível, o PolyMakr identifica seus preços e aplica as mesmas regras.
    Na aba **Regras**, o quadro mostra **Em Fila**, **Executar Imediato** e **Favoritos** lado a lado. Cada card mostra o preço de gatilho e oferece um botão **Remover**. Arraste regras entre as duas primeiras seções ou use o menu ⋮. Em **Em Fila**, arraste um card para cima/baixo de outro para definir a ordem de execução; a posição nas outras seções não altera o processamento. Regras em execução não podem ser movidas.
    Arrastar um favorito para uma seção de regras cria uma nova regra e mantém o modelo salvo; Favoritos não aceita cards arrastados. O menu ⋮ também permite ver detalhes, editar, carregar um modelo no formulário e renomear. Editar uma regra concluída não a reativa. A extensão não altera o cartão de negociação do Polymarket.
 
 ## Regras
 
-Cada regra define resultado (Up/Down), compra ou venda, condição e preço de disparo, preço da ordem limite, quantidade em shares e comportamento desejado, sem salvar um mercado específico. O PolyMakr usa o mercado identificado no painel de negociação aberto; a execução e o histórico de cada regra são independentes por mercado. A expiração permanece em **Never**, como no formulário de referência:
+Cada regra define resultado (Up/Down), compra ou venda, condição e preço de disparo, preço da ordem limite, quantidade em shares e comportamento desejado, sem salvar um mercado específico. O preço monitorado corresponde ao lado Buy/Sell atualmente selecionado no painel do Polymarket; só regras daquele lado são avaliadas, evitando comparar um gatilho de venda com a cotação de compra (ou vice-versa). O PolyMakr usa o mercado identificado no painel de negociação aberto; a execução e o histórico de cada regra são independentes por mercado. A expiração permanece em **Never**, como no formulário de referência:
 
 - **Somente notificar**: gera uma notificação do navegador quando o preço cruza o limite.
 - **Avisar e pedir confirmação**: gera um aviso; a confirmação manual dentro da extensão ainda não está integrada.

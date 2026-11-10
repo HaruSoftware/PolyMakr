@@ -37,7 +37,7 @@ function renderQuotes() {
       choice.type = "button";
       choice.className = `outcome-choice ${outcome.toLowerCase()}`;
       choice.textContent = quote
-        ? `${outcome} ${quote.price.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}¢`
+        ? `${outcome} · ${quote.side === "sell" ? "Sell" : "Buy"} ${quote.price.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}¢`
         : outcome;
       choice.setAttribute("aria-pressed", String(Boolean(quote && quote.key === selectedQuoteKey)));
       choice.disabled = !quote || Boolean(quote.unavailable);
@@ -58,6 +58,7 @@ function renderQuotes() {
   if (quotes.some((quote) => quote.key === selectedQuoteKey)) {
     quoteSelect.value = selectedQuoteKey;
   }
+  if (!editingRule && quotes[0]?.side) form.elements.side.value = quotes[0].side;
 }
 
 function renderRules() {
@@ -554,6 +555,7 @@ async function editRule(rule) {
   resetRuleForm();
   editingRuleId = rule.id;
   form.elements.side.value = rule.side;
+  selectNativeTradeSide(rule.side);
   form.elements.trigger.value = rule.trigger || "reaches";
   form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
   form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);
@@ -577,6 +579,7 @@ function useRuleTemplate(rule) {
     || quotes[0]?.key
     || "";
   form.elements.side.value = rule.side;
+  selectNativeTradeSide(rule.side);
   form.elements.trigger.value = rule.trigger || "reaches";
   form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
   form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);
