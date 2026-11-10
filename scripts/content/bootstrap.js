@@ -63,24 +63,27 @@ shadow.innerHTML = `
     .board-lane.drag-over { border-color: #087c3b; background: #e8f4ec; }
     .lane-heading { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 0 0 9px; font-size: 12px; font-weight: 750; }
     .lane-count { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: #e9eeea; color: #59645d; font-size: 9px; }
-    .rules, .favorites { display: grid; gap: 7px; min-height: 170px; }
-    .rule, .template { position: relative; display: grid; gap: 8px; padding: 9px; border: 1px solid #e1e7e2; border-radius: 9px; background: #fff; box-shadow: 0 2px 6px #17211b08; cursor: grab; }
+    .rules, .favorites { display: grid; align-content: start; gap: 4px; min-height: 170px; }
+    .rule, .template { position: relative; display: flex; height: 28px; min-height: 28px; align-items: center; padding: 2px 5px; border: 1px solid #e1e7e2; border-radius: 7px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
     .rule:active, .template:active { cursor: grabbing; }
     .rule[aria-grabbed="true"], .template[aria-grabbed="true"] { opacity: .5; }
     .rule.drop-before { border-top: 2px solid #087c3b; }
     .rule.drop-after { border-bottom: 2px solid #087c3b; }
-    .rule-header, .template-header { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 6px; }
-    .rule-heading, .template-heading { min-width: 0; overflow: hidden; }
-    .rule-title, .template-title { overflow: hidden; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-    .rule-subtitle, .template-subtitle { overflow: hidden; margin-top: 2px; color: #657168; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-    .rule-top-actions { display: flex; flex: 0 0 auto; align-items: flex-start; gap: 4px; }
-    .action-icon { display: inline-grid; width: 20px; height: 20px; place-items: center; border-radius: 6px; background: #f1f3f1; color: #59645d; font-size: 12px; font-weight: 800; }
-    .action-icon.buy { background: #e8f4ec; color: #087c3b; }
-    .action-icon.sell { background: #fde9e8; color: #a33b2e; }
+    .rule-header, .template-header { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 4px; }
+    .rule-heading, .template-heading { display: flex; min-width: 0; align-items: center; overflow: hidden; }
+    .rule-title, .template-title { overflow: hidden; font-size: 9px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .rule-top-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
+    .action-icon { display: inline-grid; width: 16px; height: 16px; place-items: center; border-radius: 4px; background: #f1f3f1; color: #59645d; font-size: 10px; font-weight: 800; }
+    .trade-badge { display: inline-flex; height: 17px; flex: 0 0 auto; overflow: hidden; align-items: center; border-radius: 4px; font-size: 8px; font-weight: 800; line-height: 1; }
+    .trade-badge span { display: grid; height: 100%; place-items: center; padding: 0 4px; }
+    .trade-side.buy { background: #087c3b; color: #fff; }
+    .trade-side.sell { background: #a33b2e; color: #fff; }
+    .trade-outcome.up { background: #e4f5ea; color: #087c3b; }
+    .trade-outcome.down { background: #fde9e8; color: #a33b2e; }
     .action-icon.auto_limit { background: #e8efff; color: #3156a8; }
     .action-icon.confirm { background: #fff3d8; color: #8a5a00; }
     .more { position: relative; flex: 0 0 auto; }
-    .more summary { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; color: #59645d; cursor: pointer; font-size: 18px; font-weight: 800; line-height: 1; list-style: none; }
+    .more summary { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 5px; color: #59645d; cursor: pointer; font-size: 16px; font-weight: 800; line-height: 1; list-style: none; }
     .more summary::-webkit-details-marker { display: none; }
     .more[open] summary, .more summary:hover { background: #f1f3f1; }
     .more-popup { position: absolute; z-index: 3; top: 27px; right: 0; display: grid; width: min(250px, calc(100vw - 80px)); max-height: 300px; gap: 8px; overflow: auto; padding: 10px; border: 1px solid #dfe6e0; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px #17211b24; cursor: default; }
@@ -92,7 +95,6 @@ shadow.innerHTML = `
     .more-actions button:disabled { cursor: not-allowed; opacity: .55; }
     .more-actions .delete { color: #a33b2e; }
     .more-actions .use-template { color: #805300; }
-    .rule-drag-hint { color: #8a948d; font-size: 9px; }
     .state-chip { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: #eef1ef; color: #566158; font-size: 10px; font-weight: 750; }
     .state-chip.queued { background: #fff3d8; color: #8a5a00; }
     .state-chip.processing { background: #e8efff; color: #3156a8; }

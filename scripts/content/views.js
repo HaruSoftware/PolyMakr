@@ -122,35 +122,31 @@ function renderRuleList(container, list, queuePolicy) {
     header.className = "rule-header";
     const heading = document.createElement("div");
     heading.className = "rule-heading";
-    const title = document.createElement("div");
-    title.className = "rule-title";
-    title.textContent = `${rule.side === "buy" ? "Comprar" : "Vender"} ${rule.outcome}`;
-    const subtitle = document.createElement("div");
-    subtitle.className = "rule-subtitle";
-    subtitle.textContent = rule.market;
-    heading.append(title, subtitle);
+    const tradeBadge = document.createElement("span");
+    const outcome = rule.outcome === "Down" ? "down" : "up";
+    const side = rule.side === "sell" ? "sell" : "buy";
+    tradeBadge.className = `trade-badge ${side} ${outcome}`;
+    tradeBadge.title = `${side === "buy" ? "Buy" : "Sell"} ${outcome === "up" ? "Up" : "Down"}`;
+    tradeBadge.setAttribute("aria-label", tradeBadge.title);
+    const sideLabel = document.createElement("span");
+    sideLabel.className = `trade-side ${side}`;
+    sideLabel.textContent = side === "buy" ? "BUY" : "SELL";
+    const outcomeLabel = document.createElement("span");
+    outcomeLabel.className = `trade-outcome ${outcome}`;
+    outcomeLabel.textContent = outcome === "up" ? "UP" : "DOWN";
+    tradeBadge.append(sideLabel, outcomeLabel);
+    heading.append(tradeBadge);
     const topActions = document.createElement("div");
     topActions.className = "rule-top-actions";
-    const sideIcon = document.createElement("span");
-    sideIcon.className = `action-icon ${rule.side}`;
-    sideIcon.textContent = rule.side === "buy" ? "↑" : "↓";
-    sideIcon.title = rule.side === "buy" ? "Comprar" : "Vender";
-    sideIcon.setAttribute("aria-label", sideIcon.title);
     const modeIcon = document.createElement("span");
     modeIcon.className = `action-icon ${rule.mode || "notify"}`;
     modeIcon.textContent = rule.mode === "auto_limit" ? "⚡" : rule.mode === "confirm" ? "?" : "◉";
     modeIcon.title = rule.mode === "auto_limit" ? "Automatizar ordem limite"
       : rule.mode === "confirm" ? "Avisar e pedir confirmação" : "Somente notificar";
     modeIcon.setAttribute("aria-label", modeIcon.title);
-    topActions.append(sideIcon, modeIcon, createRuleMore(rule, { triggerPrice, orderPrice, size, state, stateLabels }));
+    topActions.append(modeIcon, createRuleMore(rule, { triggerPrice, orderPrice, size, state, stateLabels }));
     header.append(heading, topActions);
-    const chip = document.createElement("span");
-    chip.className = `state-chip ${state}`;
-    chip.textContent = stateLabels[state] || "Monitorando";
-    const hint = document.createElement("span");
-    hint.className = "rule-drag-hint";
-    hint.textContent = "Arraste para mover";
-    row.append(header, chip, hint);
+    row.append(header);
     container.append(row);
   }
 }
@@ -183,7 +179,7 @@ function createRuleMore(rule, details) {
     metrics.append(metric);
   }
   const execution = document.createElement("div");
-  execution.textContent = rule.executionMessage || modeLabel(rule.mode, rule.executionStatus);
+  execution.textContent = `Status: ${details.stateLabels[details.state] || "Monitorando"}. ${rule.executionMessage || modeLabel(rule.mode, rule.executionStatus)}`;
   const policy = document.createElement("div");
   policy.textContent = rule.queuePolicy === "independent"
     ? "Executar ao atingir o gatilho, sem aguardar a fila."
@@ -259,10 +255,7 @@ function renderFavorites() {
     const title = document.createElement("div");
     title.className = "template-title";
     title.textContent = favorite.name;
-    const subtitle = document.createElement("div");
-    subtitle.className = "template-subtitle";
-    subtitle.textContent = `${favorite.side === "buy" ? "Comprar" : "Vender"} ${favorite.outcome}`;
-    heading.append(title, subtitle);
+    heading.append(title);
     const topActions = document.createElement("div");
     topActions.className = "rule-top-actions";
     const favoriteIcon = document.createElement("span");
@@ -271,10 +264,7 @@ function renderFavorites() {
     favoriteIcon.title = "Modelo favorito";
     topActions.append(favoriteIcon, createFavoriteMore(favorite));
     header.append(heading, topActions);
-    const hint = document.createElement("span");
-    hint.className = "rule-drag-hint";
-    hint.textContent = "Arraste para criar uma regra";
-    card.append(header, hint);
+    card.append(header);
     favoritesElement.append(card);
   }
 }
