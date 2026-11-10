@@ -69,7 +69,7 @@ function syncAutoTradeTab() {
         <div class="heading"><strong>Automação</strong><span>Ordem limite</span></div>
         <div class="prices" aria-label="Resultados e preços"></div>
         <form>
-          <select name="quote" aria-label="Resultado" required hidden></select>
+          <select name="quote" aria-label="Resultado" hidden></select>
           <div class="row">
             <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
             <label>Quantidade (shares)<input name="shares" type="number" min="0.01" step="0.01" placeholder="ex.: 5" required></label>
@@ -329,11 +329,13 @@ function findTradeSideGroup(tradingPanel) {
 }
 
 function findOutcomeGroup(tradingPanel) {
-  return [...tradingPanel.querySelectorAll("[role='radiogroup']")]
-    .find((group) => [...group.querySelectorAll("button,[role='radio']")]
-      .some((button) => parseQuoteButton(button)?.outcome === "Up")
-      && [...group.querySelectorAll("button,[role='radio']")]
-        .some((button) => parseQuoteButton(button)?.outcome === "Down"));
+  const groups = [...tradingPanel.querySelectorAll("[role='radiogroup']")]
+    .filter((group) => {
+      const buttons = [...group.querySelectorAll("button,[role='radio']")].filter(isVisible);
+      return buttons.some((button) => parseQuoteButton(button)?.outcome === "Up")
+        && buttons.some((button) => parseQuoteButton(button)?.outcome === "Down");
+    });
+  return groups.length === 1 ? groups[0] : null;
 }
 
 function getInlineQuotes() {
@@ -342,12 +344,20 @@ function getInlineQuotes() {
   if (!outcomeGroup) {
     return [];
   }
-  return [...outcomeGroup.querySelectorAll("button,[role='radio']")]
+  const quotes = [...outcomeGroup.querySelectorAll("button,[role='radio']")]
     .map((button) => {
       const quote = parseQuoteButton(button);
       return quote ? { ...quote, element: button } : null;
     })
     .filter(Boolean);
+  const marketKeys = new Set(quotes.map((quote) => quote.key.slice(0, quote.key.lastIndexOf("|"))));
+  if (quotes.length !== 2
+    || marketKeys.size !== 1
+    || quotes.filter((quote) => quote.outcome === "Up").length !== 1
+    || quotes.filter((quote) => quote.outcome === "Down").length !== 1) {
+    return [];
+  }
+  return quotes;
 }
 
 function renderInlineAutoQuotes() {

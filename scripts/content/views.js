@@ -1,14 +1,16 @@
 function renderQuotes() {
-  const selectedQuoteKey = quotes.some((quote) => quote.key === quoteSelect.value)
-    ? quoteSelect.value
-    : quotes.find((quote) => quote.outcome === "Up")?.key || quotes[0]?.key || "";
+  const editingRule = editingRuleId && rules.find((rule) => rule.id === editingRuleId);
+  const selectedQuoteKey = editingRule
+    ? quotes.find((quote) => quote.outcome === editingRule.outcome)?.key || ""
+    : quotes.some((quote) => quote.key === quoteSelect.value)
+      ? quoteSelect.value
+      : quotes.find((quote) => quote.outcome === "Up")?.key || quotes[0]?.key || "";
   quoteSelect.replaceChildren();
   quoteOptions.replaceChildren();
 
-  const editingRule = editingRuleId && rules.find((rule) => rule.id === editingRuleId);
   if (quotes.length === 0 && !editingRule) {
     quoteSelect.add(new Option("Aguardando preços…", ""));
-    quoteOptions.innerHTML = '<p class="empty">Nenhum resultado com preço foi detectado nesta página.</p>';
+    quoteOptions.innerHTML = '<p class="empty">Abra o painel de negociação de um mercado para identificar os preços Up/Down.</p>';
     return;
   }
 
@@ -20,19 +22,6 @@ function renderQuotes() {
     }
     groupedQuotes.get(marketKey).outcomes.set(quote.outcome, quote);
   }
-  if (editingRule && !quotes.some((quote) => quote.key === editingRule.quoteKey)) {
-    const marketKey = editingRule.quoteKey.slice(0, editingRule.quoteKey.lastIndexOf("|"));
-    if (!groupedQuotes.has(marketKey)) {
-      groupedQuotes.set(marketKey, { market: editingRule.market, outcomes: new Map() });
-    }
-    groupedQuotes.get(marketKey).outcomes.set(editingRule.outcome, {
-      key: editingRule.quoteKey,
-      market: editingRule.market,
-      outcome: editingRule.outcome,
-      unavailable: true
-    });
-  }
-
   for (const { market, outcomes: outcomesByName } of groupedQuotes.values()) {
     const marketGroup = document.createElement("div");
     marketGroup.className = "market-group";
@@ -68,9 +57,6 @@ function renderQuotes() {
 
   if (quotes.some((quote) => quote.key === selectedQuoteKey)) {
     quoteSelect.value = selectedQuoteKey;
-  } else if (editingRule) {
-    quoteSelect.add(new Option(`${editingRule.market} · ${editingRule.outcome} (fora da página atual)`, editingRule.quoteKey));
-    quoteSelect.value = editingRule.quoteKey;
   }
 }
 
@@ -109,7 +95,8 @@ function renderRuleList(container, list, queuePolicy) {
     const size = rule.shares === undefined
       ? (rule.side === "buy" ? `US$ ${rule.amount}` : `${rule.amount} shares`)
       : `${rule.shares} shares`;
-    const state = rule.executionStatus || "monitoring";
+    const execution = executionStates[rule.id] || {};
+    const state = execution.status || "monitoring";
     const stateLabels = {
       monitoring: "Monitorando",
       queued: "Na fila",
@@ -136,6 +123,11 @@ function renderRuleList(container, list, queuePolicy) {
     outcomeLabel.textContent = outcome === "up" ? "UP" : "DOWN";
     tradeBadge.append(sideLabel, outcomeLabel);
     heading.append(tradeBadge);
+    const market = document.createElement("span");
+    market.className = "rule-market";
+    market.textContent = quotes[0]?.market || "Aguardando mercado";
+    market.title = market.textContent;
+    heading.append(market);
     const topActions = document.createElement("div");
     topActions.className = "rule-top-actions";
     const modeIcon = document.createElement("span");
@@ -144,10 +136,51 @@ function renderRuleList(container, list, queuePolicy) {
     modeIcon.title = rule.mode === "auto_limit" ? "Automatizar ordem limite"
       : rule.mode === "confirm" ? "Avisar e pedir confirmação" : "Somente notificar";
     modeIcon.setAttribute("aria-label", modeIcon.title);
-    topActions.append(modeIcon, createRuleMore(rule, { triggerPrice, orderPrice, size, state, stateLabels }));
+    topActions.append(modeIcon, createRuleMore(rule, {
+      triggerPrice, orderPrice, size, state, stateLabels,
+      message: execution.message
+    }));
     header.append(heading, topActions);
     row.append(header);
+    const meta = document.createElement("div");
+    meta.className = "card-meta";
+    const trigger = document.createElement("div");
+    trigger.className = "card-trigger";
+    trigger.append(document.createTextNode("Gatilho"));
+    const triggerValue = document.createElement("strong");
+    triggerValue.textContent = `${triggerPrice.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}¢`;
+    trigger.append(triggerValue);
+    const remove = createCardRemoveButton("Remover regra", () => removeRule(rule));
+    meta.append(trigger, remove);
+    row.append(meta);
     container.append(row);
+  }
+}
+
+function createCardRemoveButton(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "card-remove";
+  button.textContent = "Remover";
+  button.setAttribute("aria-label", label);
+  button.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await onClick();
+  });
+  return button;
+}
+
+async function removeRule(rule) {
+  const previous = rules;
+  rules = rules.filter((item) => item.id !== rule.id);
+  try {
+    await persistRules();
+    renderRules();
+    showToast("Regra removida", "A regra foi removida da fila e do histórico.", "success");
+  } catch (error) {
+    rules = previous;
+    showToast("Não foi possível remover", error.message || String(error), "error");
+    renderRules();
   }
 }
 
@@ -161,7 +194,7 @@ function createRuleMore(rule, details) {
   popup.className = "more-popup";
   const info = document.createElement("div");
   info.className = "more-info";
-  info.textContent = rule.market;
+  info.textContent = `${rule.side === "buy" ? "Comprar" : "Vender"} ${rule.outcome}`;
   const metrics = document.createElement("div");
   metrics.className = "more-metrics";
   for (const [label, value] of [
@@ -179,7 +212,7 @@ function createRuleMore(rule, details) {
     metrics.append(metric);
   }
   const execution = document.createElement("div");
-  execution.textContent = `Status: ${details.stateLabels[details.state] || "Monitorando"}. ${rule.executionMessage || modeLabel(rule.mode, rule.executionStatus)}`;
+  execution.textContent = `Status: ${details.stateLabels[details.state] || "Monitorando"}. ${details.message || modeLabel(rule.mode, details.state)}`;
   const policy = document.createElement("div");
   policy.textContent = rule.queuePolicy === "independent"
     ? "Executar ao atingir o gatilho, sem aguardar a fila."
@@ -187,7 +220,7 @@ function createRuleMore(rule, details) {
   info.append(execution, policy);
   const actions = document.createElement("div");
   actions.className = "more-actions";
-  const canMove = rule.executionStatus !== "queued" && rule.executionStatus !== "processing";
+  const canMove = details.state !== "queued" && details.state !== "processing";
   if (canMove) {
     const move = document.createElement("button");
     move.type = "button";
@@ -202,32 +235,14 @@ function createRuleMore(rule, details) {
     const edit = document.createElement("button");
     edit.type = "button";
     edit.textContent = "Editar regra";
-    edit.addEventListener("click", () => {
+    edit.addEventListener("click", async () => {
       more.open = false;
-      editRule(rule);
+      await editRule(rule);
     });
     actions.append(edit);
   }
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "delete";
-  remove.textContent = "Remover regra";
-  remove.addEventListener("click", async () => {
-    more.open = false;
-    const previous = rules;
-    rules = rules.filter((item) => item.id !== rule.id);
-    try {
-      await persistRules();
-      renderRules();
-      showToast("Regra removida", "A regra foi removida da fila e do histórico.", "success");
-    } catch (error) {
-      rules = previous;
-      showToast("Não foi possível remover", error.message || String(error), "error");
-      renderRules();
-    }
-  });
-  actions.append(remove);
-  popup.append(info, metrics, actions);
+  popup.append(info, metrics);
+  if (actions.childElementCount) popup.append(actions);
   more.append(summary, popup);
   return more;
 }
@@ -256,6 +271,20 @@ function renderFavorites() {
     title.className = "template-title";
     title.textContent = favorite.name;
     heading.append(title);
+    const outcome = favorite.outcome === "Down" ? "down" : "up";
+    const side = favorite.side === "sell" ? "sell" : "buy";
+    const tradeBadge = document.createElement("span");
+    tradeBadge.className = `trade-badge ${side} ${outcome}`;
+    tradeBadge.title = `${side === "buy" ? "Buy" : "Sell"} ${outcome === "up" ? "Up" : "Down"}`;
+    tradeBadge.setAttribute("aria-label", tradeBadge.title);
+    const sideLabel = document.createElement("span");
+    sideLabel.className = `trade-side ${side}`;
+    sideLabel.textContent = side === "buy" ? "BUY" : "SELL";
+    const outcomeLabel = document.createElement("span");
+    outcomeLabel.className = `trade-outcome ${outcome}`;
+    outcomeLabel.textContent = outcome === "up" ? "UP" : "DOWN";
+    tradeBadge.append(sideLabel, outcomeLabel);
+    heading.prepend(tradeBadge);
     const topActions = document.createElement("div");
     topActions.className = "rule-top-actions";
     const favoriteIcon = document.createElement("span");
@@ -265,6 +294,17 @@ function renderFavorites() {
     topActions.append(favoriteIcon, createFavoriteMore(favorite));
     header.append(heading, topActions);
     card.append(header);
+    const meta = document.createElement("div");
+    meta.className = "card-meta";
+    const trigger = document.createElement("div");
+    trigger.className = "card-trigger compact";
+    trigger.append(document.createTextNode("Gatilho"));
+    const triggerValue = document.createElement("strong");
+    triggerValue.textContent = `${Number(favorite.triggerCents ?? favorite.limitCents).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}¢`;
+    trigger.append(triggerValue);
+    const remove = createCardRemoveButton("Excluir favorito", () => removeFavorite(favorite));
+    meta.append(trigger, remove);
+    card.append(meta);
     favoritesElement.append(card);
   }
 }
@@ -279,7 +319,7 @@ function createFavoriteMore(favorite) {
   popup.className = "more-popup";
   const info = document.createElement("div");
   info.className = "more-info";
-  info.textContent = `${favorite.market} · ${favorite.side === "buy" ? "Comprar" : "Vender"} ${favorite.outcome}`;
+  info.textContent = `${favorite.side === "buy" ? "Comprar" : "Vender"} ${favorite.outcome}`;
   const metrics = document.createElement("div");
   metrics.className = "more-metrics";
   for (const [label, value] of [
@@ -322,12 +362,7 @@ function createFavoriteMore(favorite) {
   rename.type = "button";
   rename.textContent = "Renomear favorito";
   rename.addEventListener("click", () => openFavoriteDialog(null, favorite));
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.className = "delete";
-  remove.textContent = "Excluir favorito";
-  remove.addEventListener("click", () => removeFavorite(favorite));
-  actions.append(createQueued, createImmediate, use, rename, remove);
+  actions.append(createQueued, createImmediate, use, rename);
   popup.append(info, metrics, actions);
   more.append(summary, popup);
   return more;
@@ -423,8 +458,15 @@ function placeOrderedRule(nextRules, ruleId, targetRuleId, insertAfter) {
 }
 
 async function moveRuleToLane(rule, queuePolicy, targetRuleId, insertAfter = false) {
-  if (rule.executionStatus === "processing") {
-    showToast("Regra em execução", "Não é possível mover uma regra enquanto a execução está em andamento.", "warning");
+  let pending;
+  try {
+    pending = await hasPendingRuleExecution(rule.id);
+  } catch (error) {
+    showToast("Não foi possível verificar a regra", error.message || String(error), "error");
+    return;
+  }
+  if (pending) {
+    showToast("Regra em execução", "Não é possível mover uma regra enquanto ela está na fila ou em execução em qualquer mercado.", "warning");
     return;
   }
   const previous = rules;
@@ -452,8 +494,6 @@ async function moveRuleToLane(rule, queuePolicy, targetRuleId, insertAfter = fal
 
 async function activateFavorite(favorite, queuePolicy, targetRuleId, insertAfter = false) {
   const rule = {
-    market: favorite.market,
-    quoteKey: favorite.quoteKey,
     outcome: favorite.outcome,
     side: favorite.side,
     trigger: favorite.trigger || "reaches",
@@ -499,9 +539,16 @@ async function removeFavorite(favorite) {
   }
 }
 
-function editRule(rule) {
-  if (rule.executionStatus === "queued" || rule.executionStatus === "processing") {
-    showToast("Regra em execução", "Não é possível editar uma regra que está na fila ou em execução.", "warning");
+async function editRule(rule) {
+  let pending;
+  try {
+    pending = await hasPendingRuleExecution(rule.id);
+  } catch (error) {
+    showToast("Não foi possível verificar a regra", error.message || String(error), "error");
+    return;
+  }
+  if (pending) {
+    showToast("Regra em execução", "Não é possível editar uma regra que está na fila ou em execução em qualquer mercado.", "warning");
     return;
   }
   resetRuleForm();
@@ -510,13 +557,14 @@ function editRule(rule) {
   form.elements.trigger.value = rule.trigger || "reaches";
   form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
   form.elements.orderLimitCents.value = String(rule.orderLimitCents ?? rule.limitCents);
+  quoteSelect.value = quotes.find((quote) => quote.outcome === rule.outcome)?.key || "";
   form.elements.shares.value = rule.shares === undefined ? "" : String(rule.shares);
   form.elements.expiration.value = rule.expiration || "never";
   form.elements.mode.value = rule.mode || "notify";
   form.elements.queuePolicy.value = rule.queuePolicy === "independent" ? "independent" : "ordered";
   renderQuotes();
   updateRuleFormMode();
-  showToast("Editando regra", rule.executionStatus
+  showToast("Editando regra", executionStates[rule.id]?.status
     ? "A regra já foi executada; editar não a reativa."
     : "Edite os campos e salve para atualizar a regra.", "success");
   selectView("create");
@@ -524,11 +572,10 @@ function editRule(rule) {
 
 function useRuleTemplate(rule) {
   resetRuleForm();
-  if (quotes.some((quote) => quote.key === rule.quoteKey)) {
-    quoteSelect.value = rule.quoteKey;
-  } else if (quotes.length) {
-    quoteSelect.value = quotes[0].key;
-  }
+  quoteSelect.value = quotes.find((quote) => quote.outcome === rule.outcome)?.key
+    || quotes.find((quote) => quote.outcome === "Up")?.key
+    || quotes[0]?.key
+    || "";
   form.elements.side.value = rule.side;
   form.elements.trigger.value = rule.trigger || "reaches";
   form.elements.triggerCents.value = String(rule.triggerCents ?? rule.limitCents);
@@ -538,18 +585,18 @@ function useRuleTemplate(rule) {
   form.elements.mode.value = rule.mode || "notify";
   form.elements.queuePolicy.value = rule.queuePolicy === "independent" ? "independent" : "ordered";
   renderQuotes();
-  showToast("Modelo carregado", quotes.some((quote) => quote.key === rule.quoteKey)
-    ? "Modelo carregado. Salve para criar uma nova regra."
-    : "Selecione o mercado atual antes de salvar.", "success");
+  showToast("Modelo carregado", quotes.some((quote) => quote.outcome === rule.outcome)
+    ? "Modelo carregado para o mercado ativo. Salve para criar uma regra."
+    : "Abra o painel de negociação de um mercado antes de salvar.", "success");
   panel.classList.add("open");
   backdrop.classList.add("open");
   selectView("create");
 }
 
 function modeLabel(mode, executionStatus) {
-  if (executionStatus === "queued") return "Na fila — será executada uma única vez";
+  if (executionStatus === "queued") return "Na fila — será executada uma vez neste mercado";
   if (executionStatus === "processing") return "Execução em andamento; não será repetida";
-  if (executionStatus === "completed") return "Concluída — não será executada novamente";
+  if (executionStatus === "completed") return "Concluída neste mercado — não será repetida aqui";
   if (executionStatus === "clicked") return "Clique em Trade enviado; confira o status";
   if (executionStatus === "failed") return "Falhou; confira antes de criar outra regra";
   if (mode === "auto_limit") return "Automatizar ordem limite (uma tentativa)";

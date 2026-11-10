@@ -1,29 +1,28 @@
-function scan() {
-  const next = new Map();
-  for (const button of document.querySelectorAll("button,[role='button']")) {
-    const label = [
-      button.innerText,
-      button.textContent,
-      button.getAttribute("aria-label"),
-      button.getAttribute("title")
-    ].filter(Boolean).join(" ");
-    if (!/\b(Up|Down)\s*[0-9]{1,3}(?:[.,][0-9]{1,2})?\s*¢/i.test(label)) {
-      continue;
+async function scan() {
+  const activeQuotes = getInlineQuotes();
+  const marketKeys = new Set(activeQuotes.map(quoteMarketKey));
+  const nextMarketKey = marketKeys.size === 1 ? [...marketKeys][0] : "";
+  const next = new Map((marketKeys.size === 1 ? activeQuotes : []).map((quote) => [quote.key, quote]));
+  const marketChanged = nextMarketKey !== activeMarketKey;
+
+  quotes = marketKeys.size === 1 ? [...next.values()] : [];
+  if (marketChanged) {
+    activeMarketKey = nextMarketKey;
+    previousPrices.clear();
+    try {
+      executionStates = activeMarketKey ? await loadExecutionStates(activeMarketKey) : {};
+    } catch (error) {
+      showToast("Não foi possível carregar o estado das regras", error.message || String(error), "error");
+      scheduleNextScan();
+      return;
     }
-    if (!isVisible(button)) {
-      continue;
-    }
-    const quote = parseQuoteButton(button);
-    if (!quote) {
-      continue;
-    }
-    next.set(quote.key, { ...quote, element: button });
+    renderRules();
   }
 
   for (const [key, quote] of next) {
     const previous = previousPrices.get(key);
-    if (previous !== undefined && previous !== quote.price) {
-      checkRules(quote, previous);
+    if (!marketChanged && previous !== undefined && previous !== quote.price) {
+      await checkRules(quote, previous);
     }
   }
 
@@ -31,10 +30,101 @@ function scan() {
   for (const [key, quote] of next) {
     previousPrices.set(key, quote.price);
   }
-  quotes = [...next.values()];
   renderQuotes();
-  processRuleQueue();
+  renderRules();
+  if (Object.values(executionStates).some((state) => state.status === "queued")) {
+    await processRuleQueue();
+  }
   scheduleNextScan();
+}
+
+function quoteMarketKey(quote) {
+  return quote.key.slice(0, quote.key.lastIndexOf("|"));
+}
+
+function executionStorageKey(marketKey) {
+  return `${EXECUTION_STATE_PREFIX}${encodeURIComponent(marketKey)}`;
+}
+
+function executionLockName(marketKey) {
+  return `polymakr-execution-${marketKey}`;
+}
+
+async function loadExecutionStates(marketKey) {
+  if (!marketKey) return {};
+  const key = executionStorageKey(marketKey);
+  const stored = await chrome.storage.local.get(key);
+  const states = stored[key];
+  return states && typeof states === "object" && !Array.isArray(states) ? states : {};
+}
+
+async function hasPendingRuleExecution(ruleId) {
+  const stored = await chrome.storage.local.get(null);
+  return Object.keys(stored).some((key) =>
+    key.startsWith(EXECUTION_STATE_PREFIX)
+    && ["queued", "processing"].includes(stored[key]?.[ruleId]?.status)
+  );
+}
+
+async function saveExecutionStates(marketKey, states) {
+  await chrome.storage.local.set({ [executionStorageKey(marketKey)]: states });
+  if (marketKey === activeMarketKey) {
+    executionStates = states;
+    renderRules();
+  }
+}
+
+async function withMarketExecutionLock(marketKey, callback) {
+  if (!marketKey || !navigator.locks?.request) {
+    throw new Error("Não foi possível coordenar a execução desta regra entre abas do Polymarket.");
+  }
+  return navigator.locks.request(executionLockName(marketKey), callback);
+}
+
+async function migrateMarketAgnosticStorage() {
+  if (!navigator.locks?.request) {
+    throw new Error("O navegador não oferece coordenação segura entre abas para migrar as regras.");
+  }
+  return navigator.locks.request("polymakr-market-rule-migration", async () => {
+    const allStored = await chrome.storage.local.get(null);
+    if (allStored[EXECUTION_SCHEMA_KEY] === 1) return allStored;
+
+    const migratedRules = Array.isArray(allStored[RULES_KEY]) ? allStored[RULES_KEY] : [];
+    const migratedFavorites = Array.isArray(allStored[FAVORITES_KEY]) ? allStored[FAVORITES_KEY] : [];
+    const changes = {};
+    for (const rule of migratedRules) {
+      if (rule.quoteKey) {
+        const marketKey = rule.quoteKey.slice(0, rule.quoteKey.lastIndexOf("|"));
+        const storageKey = executionStorageKey(marketKey);
+        const states = changes[storageKey] || allStored[storageKey] || {};
+        if (rule.executionStatus) {
+          states[rule.id] = {
+            status: rule.executionStatus === "processing" ? "failed" : rule.executionStatus,
+            message: rule.executionStatus === "processing"
+              ? "Execução interrompida durante a atualização. Confira o Polymarket antes de tentar novamente."
+              : rule.executionMessage || "",
+            triggeredPrice: rule.triggeredPrice,
+            updatedAt: Date.now()
+          };
+        }
+        changes[storageKey] = states;
+      }
+      delete rule.market;
+      delete rule.quoteKey;
+      delete rule.executionStatus;
+      delete rule.executionMessage;
+      delete rule.triggeredPrice;
+    }
+    for (const favorite of migratedFavorites) {
+      delete favorite.market;
+      delete favorite.quoteKey;
+    }
+    changes[RULES_KEY] = migratedRules;
+    changes[FAVORITES_KEY] = migratedFavorites;
+    changes[EXECUTION_SCHEMA_KEY] = 1;
+    await chrome.storage.local.set(changes);
+    return { ...allStored, ...changes };
+  });
 }
 
 function isVisible(element) {
@@ -51,99 +141,45 @@ function scheduleNextScan() {
   scanTimer = window.setTimeout(scan, 300);
 }
 
-function checkRules(quote, previous) {
-  const queued = [];
-  for (const rule of rules) {
-    if (!rule.enabled || rule.executionStatus || rule.quoteKey !== quote.key) continue;
-    const limit = Number(rule.triggerCents ?? rule.limitCents);
-    const crossed = rule.trigger === "rises"
-      ? previous < limit && quote.price >= limit
-      : rule.trigger === "falls"
-        ? previous > limit && quote.price <= limit
-        : (previous < limit && quote.price >= limit) || (previous > limit && quote.price <= limit);
-    if (!crossed) continue;
-    rule.executionStatus = "queued";
-    rule.triggeredPrice = quote.price;
-    rule.executionMessage = rule.queuePolicy === "independent"
-      ? "Gatilho atingido; aguardando execução independente."
-      : "Gatilho atingido; aguardando sua vez na fila.";
-    queued.push(rule);
-  }
-
-  if (queued.length) {
-    renderRules();
-    persistRules().catch((error) => {
-      for (const rule of queued) {
-        rule.executionStatus = "failed";
-        rule.executionMessage = `Não foi possível registrar a regra na fila; ela não foi executada: ${error.message || error}`;
-      }
-      showToast("Falha ao salvar a fila", "Nenhuma nova regra foi executada. Confira o armazenamento local.", "error");
-      renderRules();
-    });
-  }
+async function checkRules(quote, previous) {
+  const marketKey = quoteMarketKey(quote);
+  await withMarketExecutionLock(marketKey, async () => {
+    const states = await loadExecutionStates(marketKey);
+    const triggered = [];
+    for (const rule of rules) {
+      if (rule.enabled === false || states[rule.id]?.status || rule.outcome !== quote.outcome) continue;
+      const limit = Number(rule.triggerCents ?? rule.limitCents);
+      const crossed = rule.trigger === "rises"
+        ? previous < limit && quote.price >= limit
+        : rule.trigger === "falls"
+          ? previous > limit && quote.price <= limit
+          : (previous < limit && quote.price >= limit) || (previous > limit && quote.price <= limit);
+      if (!crossed) continue;
+      states[rule.id] = {
+        status: "queued",
+        triggeredPrice: quote.price,
+        message: rule.queuePolicy === "independent"
+          ? "Gatilho atingido; aguardando execução independente."
+          : "Gatilho atingido; aguardando sua vez na fila.",
+        updatedAt: Date.now()
+      };
+      triggered.push(rule);
+    }
+    if (triggered.length) await saveExecutionStates(marketKey, states);
+    await processQueuedRulesLocked(marketKey, states);
+  }).catch((error) => {
+    showToast("Falha na fila de regras", error.message || String(error), "error");
+  });
 }
 
 async function processRuleQueue() {
-  if (queueWorkerRunning) return;
+  if (!activeMarketKey || queueWorkerRunning) return;
   queueWorkerRunning = true;
   try {
-    while (true) {
-      try {
-        await rulesWrite;
-      } catch (error) {
-        await persistRules().catch((retryError) => {
-          throw new Error(`Falha ao salvar regras: ${error.message || error}. Nova tentativa: ${retryError.message || retryError}.`);
-        });
-      }
-      const rule = findNextQueuedRule();
-      if (!rule) return;
-      const quote = quotes.find((item) => item.key === rule.quoteKey);
-      if (!quote) return;
-
-      rule.executionStatus = "processing";
-      rule.executionMessage = "Execução em andamento.";
-      try {
-        await persistRules();
-      } catch (error) {
-        rule.executionStatus = "failed";
-        rule.executionMessage = `Não foi possível registrar o início da execução; a regra não foi executada: ${error.message || error}`;
-        showToast("Não foi possível iniciar a regra", rule.executionMessage, "error");
-        renderRules();
-        return;
-      }
-      renderRules();
-
-      const summary = ruleSummary(rule, quote);
-      try {
-        if (rule.mode === "auto_limit") {
-          await executeLimitOrder(rule, quote);
-          rule.executionMessage = "Concluída — clique em Trade enviado; confira o status da ordem no Polymarket.";
-        } else {
-          const notice = rule.mode === "confirm"
-            ? "Confirmação não conectada; somente aviso."
-            : "Somente alerta.";
-          rule.executionMessage = "Concluída — aviso enviado.";
-          sendRuleNotification(`${summary} ${notice}`, rule.side === "buy" ? "Comprar" : "Vender");
-        }
-        rule.executionStatus = "completed";
-        await persistRules();
-        renderRules();
-        if (rule.mode === "auto_limit") {
-          sendRuleNotification(`${summary} Clique em Trade enviado. Confira a ordem no Polymarket e confirme a carteira se solicitado.`, rule.side === "buy" ? "Comprar" : "Vender");
-        }
-      } catch (error) {
-        rule.executionStatus = "failed";
-        const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
-        rule.executionMessage = `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
-        try {
-          await persistRules();
-        } catch (storageError) {
-          rule.executionMessage += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
-        }
-        renderRules();
-        sendRuleNotification(`A regra não foi concluída: ${rule.executionMessage}`, "Execução não concluída");
-      }
-    }
+    await withMarketExecutionLock(activeMarketKey, async () => {
+      const states = await loadExecutionStates(activeMarketKey);
+      await processQueuedRulesLocked(activeMarketKey, states);
+    });
   } catch (error) {
     showToast("Falha na fila de regras", error.message || String(error), "error");
   } finally {
@@ -151,35 +187,113 @@ async function processRuleQueue() {
   }
 }
 
-function findNextQueuedRule() {
+async function processQueuedRulesLocked(marketKey, states) {
+  let recoveredInterruptedExecution = false;
+  for (const state of Object.values(states)) {
+    if (state.status !== "processing") continue;
+    state.status = "failed";
+    state.message = "Execução interrompida; confira o Polymarket antes de criar outra regra.";
+    state.updatedAt = Date.now();
+    recoveredInterruptedExecution = true;
+  }
+  if (recoveredInterruptedExecution) await saveExecutionStates(marketKey, states);
+
+  while (true) {
+    const rule = findNextQueuedRule(states);
+    if (!rule) return;
+    const quote = quotes.find((item) => item.outcome === rule.outcome);
+    if (!quote || quoteMarketKey(quote) !== marketKey) return;
+
+    states[rule.id] = {
+      ...states[rule.id],
+      status: "processing",
+      message: "Execução em andamento.",
+      updatedAt: Date.now()
+    };
+    try {
+      await saveExecutionStates(marketKey, states);
+    } catch (error) {
+      states[rule.id] = {
+        ...states[rule.id],
+        status: "failed",
+        message: `Não foi possível registrar o início da execução; a regra não foi executada: ${error.message || error}`,
+        updatedAt: Date.now()
+      };
+      try {
+        await saveExecutionStates(marketKey, states);
+      } catch (storageError) {
+        states[rule.id].message += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
+        if (marketKey === activeMarketKey) {
+          executionStates = states;
+          renderRules();
+        }
+      }
+      showToast("Não foi possível iniciar a regra", states[rule.id].message, "error");
+      return;
+    }
+
+    const summary = ruleSummary(rule, quote, states[rule.id]);
+    try {
+      if (rule.mode === "auto_limit") {
+        await executeLimitOrder(rule, quote);
+        states[rule.id].message = "Concluída — clique em Trade enviado; confira o status da ordem no Polymarket.";
+      } else {
+        const notice = rule.mode === "confirm"
+          ? "Confirmação não conectada; somente aviso."
+          : "Somente alerta.";
+        states[rule.id].message = "Concluída — aviso enviado.";
+        sendRuleNotification(`${summary} ${notice}`, rule.side === "buy" ? "Comprar" : "Vender");
+      }
+      states[rule.id].status = "completed";
+      states[rule.id].updatedAt = Date.now();
+      await saveExecutionStates(marketKey, states);
+      if (rule.mode === "auto_limit") {
+        sendRuleNotification(`${summary} Clique em Trade enviado. Confira a ordem no Polymarket e confirme a carteira se solicitado.`, rule.side === "buy" ? "Comprar" : "Vender");
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
+      states[rule.id].status = "failed";
+      states[rule.id].message = `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
+      states[rule.id].updatedAt = Date.now();
+      try {
+        await saveExecutionStates(marketKey, states);
+      } catch (storageError) {
+        states[rule.id].message += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
+      }
+      sendRuleNotification(`A regra não foi concluída: ${states[rule.id].message}`, "Execução não concluída");
+    }
+  }
+}
+
+function findNextQueuedRule(states) {
   const independentRule = rules.find((rule) =>
     rule.enabled !== false
     && rule.queuePolicy === "independent"
-    && rule.executionStatus === "queued"
-    && quotes.some((quote) => quote.key === rule.quoteKey)
+    && states[rule.id]?.status === "queued"
+    && quotes.some((quote) => quote.outcome === rule.outcome)
   );
   if (independentRule) return independentRule;
 
   const firstOrderedRule = rules.find((rule) =>
     rule.enabled !== false
     && rule.queuePolicy !== "independent"
-    && !["completed", "failed", "clicked"].includes(rule.executionStatus)
+    && !["completed", "failed", "clicked"].includes(states[rule.id]?.status)
   );
-  return firstOrderedRule?.executionStatus === "queued"
-    && quotes.some((quote) => quote.key === firstOrderedRule.quoteKey)
+  return states[firstOrderedRule?.id]?.status === "queued"
+    && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome)
     ? firstOrderedRule
     : null;
 }
 
-function ruleSummary(rule, quote) {
+function ruleSummary(rule, quote, state) {
   const verb = rule.side === "buy" ? "Comprar" : "Vender";
   const trigger = Number(rule.triggerCents ?? rule.limitCents);
   const orderPrice = Number(rule.orderLimitCents ?? rule.limitCents);
   const size = rule.shares === undefined
     ? (rule.side === "buy" ? `US$ ${rule.amount}` : `${rule.amount} shares`)
     : `${rule.shares} shares`;
-  const observed = Number(rule.triggeredPrice ?? quote.price);
-  return `${verb} ${quote.outcome} em ${rule.market}: gatilho de ${trigger}¢ atingido (preço observado ${observed}¢). Ordem limite configurada em ${orderPrice}¢, tamanho: ${size}. Expiração: Never.`;
+  const observed = Number(state.triggeredPrice ?? quote.price);
+  return `${verb} ${quote.outcome} em ${quote.market}: gatilho de ${trigger}¢ atingido (preço observado ${observed}¢). Ordem limite configurada em ${orderPrice}¢, tamanho: ${size}. Expiração: Never.`;
 }
 
 async function executeLimitOrder(rule, quote) {
@@ -203,13 +317,15 @@ async function executeLimitOrder(rule, quote) {
   const quoteButton = quote.element;
   const currentQuote = quoteButton && parseQuoteButton(quoteButton);
   if (!quoteButton || !quoteButton.isConnected || !isVisible(quoteButton)
-    || !currentQuote || currentQuote.key !== rule.quoteKey || currentQuote.outcome !== rule.outcome) {
-    throw new Error("O botão do resultado associado à regra não está mais disponível.");
+    || !currentQuote || currentQuote.key !== quote.key
+    || quoteMarketKey(currentQuote) !== activeMarketKey
+    || currentQuote.outcome !== rule.outcome) {
+    throw new Error("O botão do resultado no mercado ativo não está mais disponível.");
   }
 
   quoteButton.click();
   await waitForPageUpdate();
-  verifySelectedQuote(rule);
+  verifySelectedQuote(quote);
 
   let panel = findTradingPanelElement();
   if (!panel) {
@@ -303,11 +419,11 @@ async function selectLimitOrderType(panel) {
   }
 }
 
-function verifySelectedQuote(rule) {
+function verifySelectedQuote(quote) {
   const selected = [...document.querySelectorAll("button[role='radio']")]
     .find((button) => button.getAttribute("aria-checked") === "true"
-      && parseQuoteButton(button)?.key === rule.quoteKey);
-  if (!selected || parseQuoteButton(selected)?.outcome !== rule.outcome) {
+      && parseQuoteButton(button)?.key === quote.key);
+  if (!selected || parseQuoteButton(selected)?.outcome !== quote.outcome) {
     throw new Error("Não foi possível confirmar a seleção do resultado da regra.");
   }
 }
@@ -319,6 +435,7 @@ function findTradingPanelElement() {
 
   const candidates = [...document.querySelectorAll("button,[role='button']")]
     .filter((button) => normalizedText(button) === "trade" && isVisible(button));
+  const panels = new Set();
 
   for (const tradeButton of candidates) {
     let node = tradeButton.parentElement;
@@ -334,12 +451,13 @@ function findTradingPanelElement() {
 
       const text = normalizedText(node);
       if (/\bbuy\b/.test(text) && /\bsell\b/.test(text) && /\bshares?\b/.test(text)) {
-        return node;
+        panels.add(node);
+        break;
       }
     }
   }
 
-  return null;
+  return panels.size === 1 ? [...panels][0] : null;
 }
 
 function findExactControls(root, label) {
@@ -385,20 +503,6 @@ function normalizedText(element) {
 
 function waitForPageUpdate() {
   return new Promise((resolve) => window.setTimeout(resolve, 150));
-}
-
-function recordAutomaticOrderFailure(rule, error) {
-  rule.executionStatus = "failed";
-  const reason = error instanceof Error ? error.message : "Falha inesperada ao preparar a ordem.";
-  rule.executionMessage = `${reason} Confira o Polymarket antes de criar outra regra.`;
-  chrome.storage.local.set({ [RULES_KEY]: rules }).then(() => {
-    renderRules();
-  }).catch((storageError) => {
-    rule.executionMessage += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
-    renderRules();
-  });
-  const message = `A tentativa automática não foi concluída: ${rule.executionMessage}`;
-  sendRuleNotification(message, "Automação não concluída");
 }
 
 function sendRuleNotification(message, action) {

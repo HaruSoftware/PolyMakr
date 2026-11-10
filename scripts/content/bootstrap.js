@@ -1,6 +1,8 @@
 const HOST_ID = "polymakr-extension-root";
 const RULES_KEY = "polymakr.rules";
 const FAVORITES_KEY = "polymakr.favorites";
+const EXECUTION_STATE_PREFIX = "polymakr.execution.";
+const EXECUTION_SCHEMA_KEY = "polymakr.executionSchema";
 const host = document.createElement("div");
 host.id = HOST_ID;
 document.documentElement.append(host);
@@ -63,16 +65,25 @@ shadow.innerHTML = `
     .board-lane.drag-over { border-color: #087c3b; background: #e8f4ec; }
     .lane-heading { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 0 0 9px; font-size: 12px; font-weight: 750; }
     .lane-count { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: #e9eeea; color: #59645d; font-size: 9px; }
-    .rules, .favorites { display: grid; align-content: start; gap: 4px; min-height: 170px; }
-    .rule, .template { position: relative; display: flex; height: 28px; min-height: 28px; align-items: center; padding: 2px 5px; border: 1px solid #e1e7e2; border-radius: 7px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
+    .rules, .favorites { display: grid; align-content: start; gap: 6px; min-height: 170px; }
+    .rule, .template { position: relative; display: grid; gap: 5px; min-height: 58px; padding: 6px 7px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
     .rule:active, .template:active { cursor: grabbing; }
     .rule[aria-grabbed="true"], .template[aria-grabbed="true"] { opacity: .5; }
     .rule.drop-before { border-top: 2px solid #087c3b; }
     .rule.drop-after { border-bottom: 2px solid #087c3b; }
-    .rule-header, .template-header { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 4px; }
-    .rule-heading, .template-heading { display: flex; min-width: 0; align-items: center; overflow: hidden; }
-    .rule-title, .template-title { overflow: hidden; font-size: 9px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-    .rule-top-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
+    .rule-header, .template-header { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; }
+    .rule-heading, .template-heading { display: flex; min-width: 0; align-items: center; gap: 6px; overflow: hidden; }
+    .rule-title, .template-title { overflow: hidden; color: #435047; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .template-title { flex: 1 1 auto; min-width: 0; }
+    .rule-top-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+    .rule-market { min-width: 0; overflow: hidden; color: #435047; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .card-meta { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; }
+    .card-market { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #78827b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .card-trigger { display: flex; min-width: 0; align-items: baseline; gap: 4px; color: #657168; font-size: 10px; }
+    .card-trigger.compact { flex: 0 0 auto; }
+    .card-trigger strong { color: #18211b; font-size: 12px; font-weight: 750; }
+    .card-remove { flex: 0 0 auto; padding: 3px 7px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; line-height: 1.3; }
+    .card-remove:hover { border-color: #d7aaa5; background: #fff7f6; }
     .action-icon { display: inline-grid; width: 16px; height: 16px; place-items: center; border-radius: 4px; background: #f1f3f1; color: #59645d; font-size: 10px; font-weight: 800; }
     .trade-badge { display: inline-flex; height: 17px; flex: 0 0 auto; overflow: hidden; align-items: center; border-radius: 4px; font-size: 8px; font-weight: 800; line-height: 1; }
     .trade-badge span { display: grid; height: 100%; place-items: center; padding: 0 4px; }
@@ -145,8 +156,8 @@ shadow.innerHTML = `
     <div class="view active" data-panel="create" role="tabpanel">
       <h2 class="form-heading">Criar regra</h2>
       <form>
-        <label>Mercado e resultado</label>
-        <div class="market-outcomes" role="group" aria-label="Mercado e resultado"></div>
+        <label>Resultado no mercado ativo</label>
+        <div class="market-outcomes" role="group" aria-label="Resultado no mercado ativo"></div>
         <select name="quote" aria-hidden="true" tabindex="-1" hidden></select>
         <div class="row">
           <label>Ação<select name="side"><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
@@ -227,6 +238,8 @@ const tradingSideGroups = new WeakSet();
 let rules = [];
 let favorites = [];
 let quotes = [];
+let activeMarketKey = "";
+let executionStates = {};
 let editingRuleId = null;
 let pendingFavorite = null;
 let renamingFavoriteId = null;
@@ -276,7 +289,24 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-chrome.storage.local.get({ [RULES_KEY]: [], [FAVORITES_KEY]: [] }).then(async (stored) => {
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") return;
+  if (changes[RULES_KEY]?.newValue) {
+    rules = changes[RULES_KEY].newValue;
+    renderRules();
+  }
+  if (changes[FAVORITES_KEY]?.newValue) {
+    favorites = changes[FAVORITES_KEY].newValue;
+    renderRules();
+  }
+  const stateKey = activeMarketKey && executionStorageKey(activeMarketKey);
+  if (stateKey && changes[stateKey]?.newValue) {
+    executionStates = changes[stateKey].newValue;
+    renderRules();
+  }
+});
+
+migrateMarketAgnosticStorage().then(async (stored) => {
   rules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
   favorites = Array.isArray(stored[FAVORITES_KEY]) ? stored[FAVORITES_KEY] : [];
   let migratedFavorites = false;
@@ -285,7 +315,7 @@ chrome.storage.local.get({ [RULES_KEY]: [], [FAVORITES_KEY]: [] }).then(async (s
     if (!favorites.some((item) => item.sourceRuleId === rule.id)) {
       favorites.push(createFavoriteTemplate(
         rule,
-        `${rule.market} · ${rule.outcome} · ${rule.side === "buy" ? "Comprar" : "Vender"}`.slice(0, 60),
+        `${rule.outcome} · ${rule.side === "buy" ? "Comprar" : "Vender"}`.slice(0, 60),
         rule.id
       ));
     }
@@ -294,20 +324,12 @@ chrome.storage.local.get({ [RULES_KEY]: [], [FAVORITES_KEY]: [] }).then(async (s
     migratedFavorites = true;
     return cleanRule;
   });
-  let interrupted = false;
-  for (const rule of rules) {
-    if (rule.executionStatus === "processing") {
-      rule.executionStatus = "failed";
-      rule.executionMessage = "Execução interrompida; confira o Polymarket. A regra não será repetida automaticamente.";
-      interrupted = true;
-    }
-  }
   renderRules();
-  if (migratedFavorites || interrupted) {
+  if (migratedFavorites) {
     try {
       await Promise.all([
         persistRules(),
-        migratedFavorites ? persistFavorites() : Promise.resolve()
+        persistFavorites()
       ]);
     } catch (error) {
       showToast("Falha ao atualizar dados locais", error.message || String(error), "error");

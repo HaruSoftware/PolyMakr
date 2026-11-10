@@ -10,9 +10,7 @@ function createRuleDraft(data, defaultMode = "notify") {
   const oldRule = editingRuleId && rules.find((item) => item.id === editingRuleId);
   const selectedQuoteKey = data.get("quote");
   const quote = quotes.find((item) => item.key === selectedQuoteKey)
-    || (oldRule?.quoteKey === selectedQuoteKey
-      ? { key: oldRule.quoteKey, market: oldRule.market, outcome: oldRule.outcome }
-      : null);
+    || (oldRule ? { outcome: oldRule.outcome } : null);
   const triggerCents = Number(data.get("triggerCents"));
   const orderLimitCents = Number(data.get("orderLimitCents"));
   const shares = Number(data.get("shares"));
@@ -22,13 +20,11 @@ function createRuleDraft(data, defaultMode = "notify") {
     || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
     || !Number.isFinite(shares) || shares < 0.01
     || !["buy", "sell"].includes(side)) {
-    showToast("Confira os dados da regra", "Selecione um mercado e informe preços e quantidade válidos.", "error");
+    showToast("Confira os dados da regra", "Abra o painel de negociação de um mercado ativo e informe preços e quantidade válidos.", "error");
     return null;
   }
 
   return {
-    market: quote.market,
-    quoteKey: quote.key,
     outcome: quote.outcome,
     side,
     trigger: data.get("trigger"),
@@ -72,7 +68,7 @@ async function saveRule(data, ruleForm, defaultMode) {
   editingRuleId = null;
   updateRuleFormMode();
   showToast(oldRule ? "Regra atualizada" : "Regra adicionada à fila",
-    oldRule ? "As alterações foram salvas." : "Será executada uma única vez quando o gatilho for atingido.",
+    oldRule ? "As alterações foram salvas." : "Será aplicada uma vez por mercado quando o gatilho for atingido.",
     "success");
   renderRules();
   renderQuotes();
@@ -97,8 +93,6 @@ function createFavoriteTemplate(rule, name, sourceRuleId) {
   return {
     id: crypto.randomUUID(),
     name,
-    market: rule.market,
-    quoteKey: rule.quoteKey,
     outcome: rule.outcome,
     side: rule.side,
     trigger: rule.trigger || "reaches",
@@ -121,7 +115,7 @@ function openFavoriteDialog(draft, favorite = null) {
   favoriteDialog.querySelector(".favorite-dialog-save").textContent = favorite ? "Salvar nome" : "Salvar favorito";
   favoriteDialogInput.value = favorite
     ? favorite.name
-    : `${draft.market} · ${draft.outcome} · ${draft.side === "buy" ? "Comprar" : "Vender"}`.slice(0, 60);
+    : `${draft.outcome} · ${draft.side === "buy" ? "Comprar" : "Vender"} · ${draft.triggerCents}¢`.slice(0, 60);
   favoriteDialogBackdrop.hidden = false;
   favoriteDialogInput.focus();
   favoriteDialogInput.select();
