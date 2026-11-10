@@ -20,7 +20,9 @@ Os scripts de conteúdo são JavaScript clássico, carregados na ordem declarada
 2. Selecione **Carregar sem compactação** e escolha a pasta deste projeto.
 3. Abra ou recarregue uma página de mercado no Polymarket.
 4. Clique no ícone da extensão e selecione **Abrir painel na página** para abrir a janela centralizada.
-5. Na aba **Criar**, selecione o resultado nos botões Up/Down com os preços atuais. **Salvar regra** adiciona uma regra à fila; **Favoritar** abre uma janela para nomear e salvar um modelo sem adicioná-lo à fila. Na aba **Regras** você pode acompanhar, editar e remover regras. Na aba **Favoritos** você pode reutilizar, renomear e excluir modelos sem alterar a fila. Editar uma regra concluída não a reativa. A extensão não altera o cartão de negociação do Polymarket.
+5. Na aba **Criar**, selecione o resultado nos botões Up/Down com os preços atuais. **Salvar regra** adiciona uma regra à fila; **Favoritar** abre uma janela para nomear e salvar um modelo sem adicioná-lo às regras.
+   Na aba **Regras**, o quadro mostra **Em Fila**, **Executar Imediato** e **Favoritos** lado a lado. Arraste regras entre as duas primeiras seções ou use o menu ⋮. Em **Em Fila**, arraste um card para cima/baixo de outro para definir a ordem de execução; a posição nas outras seções não altera o processamento. Regras em execução não podem ser movidas.
+   Arrastar um favorito para uma seção de regras cria uma nova regra e mantém o modelo salvo; Favoritos não aceita cards arrastados. O menu ⋮ também permite ver detalhes, editar, carregar um modelo no formulário, renomear e remover. Editar uma regra concluída não a reativa. A extensão não altera o cartão de negociação do Polymarket.
 
 ## Regras
 
