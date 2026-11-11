@@ -4,7 +4,7 @@ function renderQuotes() {
     ? quotes.find((quote) => quote.outcome === editingRule.outcome)?.key || ""
     : quotes.some((quote) => quote.key === quoteSelect.value)
       ? quoteSelect.value
-      : quotes.find((quote) => quote.outcome === "Up")?.key || quotes[0]?.key || "";
+      : "";
   quoteSelect.replaceChildren();
   quoteOptions.replaceChildren();
 
@@ -53,9 +53,7 @@ function renderQuotes() {
     quoteOptions.append(marketGroup);
   }
 
-  if (quotes.some((quote) => quote.key === selectedQuoteKey)) {
-    quoteSelect.value = selectedQuoteKey;
-  }
+  quoteSelect.value = selectedQuoteKey;
 }
 
 function renderRules() {

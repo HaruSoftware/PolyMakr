@@ -364,7 +364,6 @@ function renderInlineAutoQuotes() {
   const prices = inlineAutoRoot.querySelector(".prices");
   const quoteSelect = inlineAutoForm.querySelector('[name="quote"]');
   const selectedKey = quoteSelect.value;
-  const selectedNativeQuote = currentQuotes.find((quote) => quote.element.getAttribute("aria-checked") === "true");
   prices.replaceChildren();
   quoteSelect.replaceChildren();
 
@@ -382,7 +381,7 @@ function renderInlineAutoQuotes() {
     priceButton.className = `price ${quote.outcome.toLowerCase()}`;
     priceButton.textContent = quote.outcome;
     priceButton.setAttribute("aria-label", quote.outcome);
-    priceButton.setAttribute("aria-pressed", String(quote.key === (selectedKey || selectedNativeQuote?.key)));
+    priceButton.setAttribute("aria-pressed", String(quote.key === selectedKey));
     priceButton.addEventListener("click", () => {
       quoteSelect.value = quote.key;
       selectNativeQuote(quote.key);
@@ -393,7 +392,7 @@ function renderInlineAutoQuotes() {
 
   quoteSelect.value = currentQuotes.some((quote) => quote.key === selectedKey)
     ? selectedKey
-    : selectedNativeQuote?.key || currentQuotes[0].key;
+    : "";
 }
 
 function selectNativeQuote(quoteKey) {
