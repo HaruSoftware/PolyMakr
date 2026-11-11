@@ -31,7 +31,6 @@ async function scan() {
     previousPrices.set(key, quote.price);
   }
   renderQuotes();
-  renderRules();
   if (Object.values(executionStates).some((state) =>
     ["queued", "completed", "failed", "clicked", "awaiting_fill", "partially_filled", "filled"].includes(state.status)
   )) {
