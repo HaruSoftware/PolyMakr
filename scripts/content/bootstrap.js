@@ -160,7 +160,7 @@ shadow.innerHTML = `
         <div class="market-outcomes" role="group" aria-label="Resultado no mercado ativo"></div>
         <select name="quote" aria-hidden="true" tabindex="-1" hidden></select>
         <div class="row">
-          <label>Ação<select name="side"><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
+          <label>Lado da ordem<select name="side" required><option value="" selected disabled>Selecione</option><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
           <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
         </div>
         <div class="row">

@@ -15,11 +15,14 @@ function createRuleDraft(data, defaultMode = "notify") {
   const orderLimitCents = Number(data.get("orderLimitCents"));
   const shares = Number(data.get("shares"));
   const side = data.get("side");
+  if (!["buy", "sell"].includes(side)) {
+    showToast("Selecione o lado da ordem", "Escolha Comprar ou Vender antes de salvar a regra.", "error");
+    return null;
+  }
   if (!activeMarketKey || !quote
     || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
     || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
-    || !Number.isFinite(shares) || shares < 0.01
-    || !["buy", "sell"].includes(side)) {
+    || !Number.isFinite(shares) || shares < 0.01) {
     showToast("Confira os dados da regra", "Abra o painel de negociação do mercado em que deseja usar esta regra e informe gatilho, preço limite e quantidade válidos.", "error");
     return null;
   }
@@ -218,7 +221,6 @@ function updateRuleFormMode() {
 function resetRuleForm() {
   editingRuleId = null;
   form.reset();
-  form.elements.side.value = quotes[0]?.side || "buy";
   updateRuleFormMode();
   renderQuotes();
 }

@@ -71,14 +71,17 @@ function syncAutoTradeTab() {
         <form>
           <select name="quote" aria-label="Resultado" hidden></select>
           <div class="row">
+            <label>Lado da ordem<select name="side" required><option value="" selected disabled>Selecione</option><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
             <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
+          </div>
+          <div class="row">
             <label>Quantidade (shares)<input name="shares" type="number" min="0.01" step="0.01" placeholder="ex.: 5" required></label>
+            <label>Ordem de execução<select name="queuePolicy"><option value="ordered">Respeitar a fila</option><option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option></select></label>
           </div>
           <div class="row">
             <label>Disparar em (¢)<input name="triggerCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
             <label>Preço limite (¢)<input name="orderLimitCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
           </div>
-          <label>Ordem de execução<select name="queuePolicy"><option value="ordered">Respeitar a fila</option><option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option></select></label>
           <button class="save" type="submit">Salvar automação</button>
           <p class="status" role="status"></p>
           <p class="hint">O gatilho é definido manualmente; ao atingi-lo, a regra envia uma ordem limite no mercado desta página.</p>
@@ -88,13 +91,7 @@ function syncAutoTradeTab() {
     inlineAutoForm = inlineAutoRoot.querySelector("form");
     inlineAutoForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const side = lastNativeTradeSide ? normalizedText(lastNativeTradeSide) : "";
-      if (!["buy", "sell"].includes(side)) {
-        showToast("Selecione uma ação", "Selecione Buy ou Sell no painel de negociação antes de salvar a regra.", "warning");
-        return;
-      }
       const data = new FormData(inlineAutoForm);
-      data.set("side", side);
       await saveRule(data, inlineAutoForm, "auto_limit");
     });
     for (const input of inlineAutoForm.querySelectorAll('[name="triggerCents"], [name="orderLimitCents"]')) {
