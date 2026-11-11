@@ -71,6 +71,7 @@ function renderRules() {
 
 function renderArchive() {
   archiveElement.replaceChildren();
+  updateArchiveSelectionControls();
   const sortedArchive = [...archivedRules].sort((left, right) =>
     Number(right.updatedAt || right.archivedAt || right.createdAt)
       - Number(left.updatedAt || left.archivedAt || left.createdAt)
@@ -97,16 +98,31 @@ function renderArchive() {
     const rule = entry.rule || entry;
     const card = document.createElement("article");
     card.className = "archive-card";
+    const heading = document.createElement("div");
+    heading.className = "archive-card-heading";
+    const selectLabel = document.createElement("label");
+    selectLabel.className = "archive-card-select";
+    const select = document.createElement("input");
+    select.type = "checkbox";
+    select.checked = selectedArchiveIds.has(entry.id);
+    select.setAttribute("aria-label", `Selecionar registro de ${rule.side === "buy" ? "compra" : "venda"} ${rule.outcome}`);
+    select.addEventListener("change", () => {
+      if (select.checked) selectedArchiveIds.add(entry.id);
+      else selectedArchiveIds.delete(entry.id);
+      updateArchiveSelectionControls();
+    });
+    selectLabel.append(select);
     const status = document.createElement("p");
     status.className = "archive-status";
     status.textContent = `${statusLabels[entry.status] || "Registrada"} · ${new Date(entry.updatedAt || entry.archivedAt || entry.createdAt).toLocaleString("pt-BR")}`;
+    heading.append(selectLabel, status);
     const action = document.createElement("p");
     action.textContent = `${rule.side === "buy" ? "Compra" : "Venda"} ${rule.outcome} · ${rule.shares ?? rule.amount} shares · gatilho ${rule.triggerCents ?? rule.limitCents}¢ · limite ${rule.orderLimitCents ?? rule.limitCents}¢`;
     const market = document.createElement("p");
     market.textContent = `Mercado: ${rule.marketTitle || rule.marketKey || "não identificado"}`;
     const message = document.createElement("p");
     message.textContent = entry.message || "";
-    card.append(status, action, market, message);
+    card.append(heading, action, market, message);
     if (Number(entry.matchedShares) > 0) {
       const fills = document.createElement("p");
       fills.textContent = `Fill observado: ${entry.matchedShares} de ${rule.shares ?? rule.amount} shares`;
@@ -125,6 +141,73 @@ function renderArchive() {
       card.append(caveat);
     }
     archiveElement.append(card);
+  }
+}
+
+function updateArchiveSelectionControls() {
+  const archiveIds = new Set(archivedRules.map((entry) => entry.id));
+  const selectedCount = [...selectedArchiveIds].filter((id) => archiveIds.has(id)).length;
+  archiveSelectAllInput.disabled = archivedRules.length === 0;
+  archiveSelectAllInput.checked = archivedRules.length > 0 && selectedCount === archivedRules.length;
+  archiveSelectAllInput.indeterminate = selectedCount > 0 && selectedCount < archivedRules.length;
+  archiveDeleteSelectedButton.disabled = selectedCount === 0;
+  archiveDeleteSelectedButton.textContent = `Excluir selecionados (${selectedCount})`;
+  archiveClearAllButton.disabled = archivedRules.length === 0;
+}
+
+function openArchiveDeleteDialog(ids, deleteAll) {
+  const availableIds = new Set(archivedRules.map((entry) => entry.id));
+  pendingArchiveDeleteIds = [...new Set(ids)].filter((id) => availableIds.has(id));
+  if (pendingArchiveDeleteIds.length === 0) {
+    showToast("Nenhum registro selecionado", "Selecione ao menos um registro para apagar.", "warning");
+    return;
+  }
+  const count = pendingArchiveDeleteIds.length;
+  archiveDeleteTitle.textContent = deleteAll ? "Limpar o Registro?" : "Apagar registros selecionados?";
+  archiveDeleteMessage.textContent = `${count} ${count === 1 ? "registro será apagado" : "registros serão apagados"} permanentemente. Esta ação não pode ser desfeita.`;
+  archiveDeleteConfirmButton.textContent = deleteAll ? "Apagar tudo" : `Apagar ${count}`;
+  archiveDeleteBackdrop.hidden = false;
+  archiveDeleteConfirmButton.focus();
+}
+
+function closeArchiveDeleteDialog() {
+  archiveDeleteBackdrop.hidden = true;
+  pendingArchiveDeleteIds = [];
+  archiveDeleteConfirmButton.textContent = "Apagar";
+}
+
+async function deleteConfirmedArchiveEntries() {
+  const ids = new Set(pendingArchiveDeleteIds);
+  if (ids.size === 0) {
+    closeArchiveDeleteDialog();
+    return;
+  }
+  try {
+    const deletedCount = await navigator.locks.request("polymakr-rules-storage", async () => {
+      const stored = await chrome.storage.local.get(null);
+      const currentArchive = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
+      const removed = currentArchive.filter((entry) => ids.has(entry.id));
+      const nextArchive = currentArchive.filter((entry) => !ids.has(entry.id));
+      const changes = { [ARCHIVE_KEY]: nextArchive };
+      for (const entry of removed) {
+        const marketKey = entry.rule?.marketKey;
+        if (!marketKey) continue;
+        const stateKey = executionStorageKey(marketKey);
+        const states = changes[stateKey] || stored[stateKey] || {};
+        delete states[entry.id];
+        changes[stateKey] = states;
+      }
+      await chrome.storage.local.set(changes);
+      archivedRules = nextArchive;
+      selectedArchiveIds = new Set([...selectedArchiveIds].filter((id) => !ids.has(id)));
+      renderArchive();
+      return removed.length;
+    });
+    closeArchiveDeleteDialog();
+    showToast("Registro atualizado", `${deletedCount} ${deletedCount === 1 ? "registro apagado" : "registros apagados"}.`, "success");
+  } catch (error) {
+    closeArchiveDeleteDialog();
+    showToast("Não foi possível apagar os registros", error.message || String(error), "error");
   }
 }
 

@@ -148,6 +148,24 @@ shadow.innerHTML = `
     .wallet-settings { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; margin-top: 12px; }
     .wallet-settings button { min-height: 36px; padding: 7px 10px; border: 0; border-radius: 7px; background: #087c3b; color: #fff; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
     .wallet-help { grid-column: 1 / -1; margin: -4px 0 0; color: #78827b; font-size: 10px; }
+    .archive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+    .archive-select-all { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; color: #59645d; font-size: 11px; }
+    .archive-select-all input, .archive-card-select input { width: auto; margin: 0; }
+    .archive-actions button { min-height: 32px; padding: 6px 9px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+    .archive-actions button.danger { border-color: #f0d7d4; color: #a33b2e; }
+    .archive-actions button:disabled { cursor: not-allowed; opacity: .5; }
+    .archive-card-heading { display: flex; align-items: flex-start; gap: 7px; }
+    .archive-card-select { display: flex; flex: 0 0 auto; align-items: center; padding-top: 2px; }
+    .archive-card-heading .archive-status { flex: 1 1 auto; }
+    .archive-delete-backdrop { position: fixed; z-index: 2147483650; inset: 0; display: grid; place-items: center; padding: 16px; background: #1118; }
+    .archive-delete-backdrop[hidden] { display: none; }
+    .archive-delete-dialog { display: grid; width: min(360px, 100%); gap: 12px; padding: 20px; border: 1px solid #e1e7e2; border-radius: 14px; background: #fff; box-shadow: 0 16px 48px #0003; }
+    .archive-delete-dialog h2 { margin: 0; font-size: 15px; }
+    .archive-delete-dialog p { margin: 0; color: #657168; font-size: 11px; }
+    .archive-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .archive-delete-actions button { padding: 9px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .archive-delete-cancel { background: #f1f3f1; color: #435047; }
+    .archive-delete-confirm { background: #a33b2e; color: #fff; }
     @media (max-width: 700px) {
       .board { grid-template-columns: repeat(3, minmax(220px, 1fr)); overflow-x: auto; padding-bottom: 5px; }
       .view[data-panel="rules"] { padding: 12px; }
@@ -222,6 +240,11 @@ shadow.innerHTML = `
         <button type="submit">Salvar carteira</button>
         <p class="wallet-help">Use o endereço público/proxy exibido na conta do Polymarket. Não informe chave privada nem credenciais.</p>
       </form>
+      <div class="archive-actions">
+        <label class="archive-select-all"><input class="archive-select-all-input" type="checkbox"> Selecionar todos</label>
+        <button class="archive-delete-selected danger" type="button" disabled>Excluir selecionados (0)</button>
+        <button class="archive-clear-all danger" type="button" disabled>Limpar tudo</button>
+      </div>
       <div class="archive-list"></div>
     </div>
   </section>
@@ -237,6 +260,16 @@ shadow.innerHTML = `
       </div>
     </form>
   </div>
+  <div class="archive-delete-backdrop" hidden>
+    <section class="archive-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-delete-title">
+      <h2 id="archive-delete-title">Apagar registros?</h2>
+      <p class="archive-delete-message"></p>
+      <div class="archive-delete-actions">
+        <button class="archive-delete-cancel" type="button">Cancelar</button>
+        <button class="archive-delete-confirm" type="button">Apagar</button>
+      </div>
+    </section>
+  </div>
 `;
 
 const panel = shadow.querySelector(".panel");
@@ -247,6 +280,13 @@ const queueRulesElement = shadow.querySelector(".queue-rules");
 const immediateRulesElement = shadow.querySelector(".immediate-rules");
 const favoritesElement = shadow.querySelector(".favorites");
 const archiveElement = shadow.querySelector(".archive-list");
+const archiveSelectAllInput = shadow.querySelector(".archive-select-all-input");
+const archiveDeleteSelectedButton = shadow.querySelector(".archive-delete-selected");
+const archiveClearAllButton = shadow.querySelector(".archive-clear-all");
+const archiveDeleteBackdrop = shadow.querySelector(".archive-delete-backdrop");
+const archiveDeleteTitle = shadow.querySelector("#archive-delete-title");
+const archiveDeleteMessage = shadow.querySelector(".archive-delete-message");
+const archiveDeleteConfirmButton = shadow.querySelector(".archive-delete-confirm");
 const walletForm = shadow.querySelector(".wallet-settings");
 const walletInput = walletForm.querySelector('[name="walletAddress"]');
 const toastStack = shadow.querySelector(".toast-stack");
@@ -261,6 +301,8 @@ const tradingSideGroups = new WeakSet();
 let rules = [];
 let favorites = [];
 let archivedRules = [];
+let selectedArchiveIds = new Set();
+let pendingArchiveDeleteIds = [];
 let walletAddress = "";
 let quotes = [];
 let activeMarketKey = "";
@@ -300,7 +342,9 @@ favoriteDialogBackdrop.addEventListener("click", (event) => {
 });
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && panel.classList.contains("open")) {
-    if (!favoriteDialogBackdrop.hidden) {
+    if (!archiveDeleteBackdrop.hidden) {
+      closeArchiveDeleteDialog();
+    } else if (!favoriteDialogBackdrop.hidden) {
       closeFavoriteDialog();
     } else {
       togglePanel();
@@ -326,6 +370,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
   if (changes[ARCHIVE_KEY]?.newValue) {
     archivedRules = Array.isArray(changes[ARCHIVE_KEY].newValue) ? changes[ARCHIVE_KEY].newValue : [];
+    const archiveIds = new Set(archivedRules.map((entry) => entry.id));
+    selectedArchiveIds = new Set([...selectedArchiveIds].filter((id) => archiveIds.has(id)));
     renderArchive();
   }
   if (changes[WALLET_KEY]?.newValue !== undefined) {
@@ -405,6 +451,23 @@ walletForm.addEventListener("submit", async (event) => {
   }
 });
 walletInput.addEventListener("input", () => walletInput.setCustomValidity(""));
+archiveSelectAllInput.addEventListener("change", () => {
+  selectedArchiveIds = archiveSelectAllInput.checked
+    ? new Set(archivedRules.map((entry) => entry.id))
+    : new Set();
+  renderArchive();
+});
+archiveDeleteSelectedButton.addEventListener("click", () => {
+  openArchiveDeleteDialog([...selectedArchiveIds], false);
+});
+archiveClearAllButton.addEventListener("click", () => {
+  openArchiveDeleteDialog(archivedRules.map((entry) => entry.id), true);
+});
+archiveDeleteBackdrop.addEventListener("click", (event) => {
+  if (event.target === archiveDeleteBackdrop) closeArchiveDeleteDialog();
+});
+archiveDeleteBackdrop.querySelector(".archive-delete-cancel").addEventListener("click", closeArchiveDeleteDialog);
+archiveDeleteConfirmButton.addEventListener("click", deleteConfirmedArchiveEntries);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
