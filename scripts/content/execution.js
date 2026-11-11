@@ -394,14 +394,7 @@ async function executeLimitOrder(rule, quote) {
 
   const marketData = await resolveMarketTradingData(rule);
 
-  quoteButton.click();
-  await waitForPageUpdate();
-  verifySelectedQuote(quote);
-
-  let panel = findTradingPanelElement();
-  if (!panel) {
-    throw new Error("Não encontrei o formulário de ordem do Polymarket.");
-  }
+  let panel = await openTradingPanelForQuote(quote);
 
   await selectTradeSide(panel, rule.side);
   panel = findTradingPanelElement();
@@ -596,6 +589,20 @@ function verifySelectedQuote(quote) {
   }
 }
 
+async function openTradingPanelForQuote(quote) {
+  quote.element.click();
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    await waitForPageUpdate();
+    const panel = findTradingPanelElement();
+    if (panel) {
+      verifySelectedQuote(quote);
+      return panel;
+    }
+  }
+  throw new Error("Não foi possível abrir o formulário de ordem após selecionar o resultado.");
+}
+
 function findTradingPanelElement() {
   if (autoModeActive && autoLayoutPanel?.isConnected) {
     return autoLayoutPanel;
@@ -612,13 +619,9 @@ function findTradingPanelElement() {
         continue;
       }
 
-      const rect = node.getBoundingClientRect();
-      if (rect.width < 230 || rect.width > 520 || rect.height < 280 || rect.height > 900) {
-        continue;
-      }
-
-      const text = normalizedText(node);
-      if (/\bbuy\b/.test(text) && /\bsell\b/.test(text) && /\bshares?\b/.test(text)) {
+      if (findExactControls(node, "Buy").length === 1
+        && findExactControls(node, "Sell").length === 1
+        && findOutcomeGroup(node)) {
         panels.add(node);
         break;
       }

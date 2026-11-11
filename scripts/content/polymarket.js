@@ -330,12 +330,30 @@ function findOutcomeGroup(tradingPanel) {
       return buttons.some((button) => parseQuoteButton(button)?.outcome === "Up")
         && buttons.some((button) => parseQuoteButton(button)?.outcome === "Down");
     });
-  return groups.length === 1 ? groups[0] : null;
+  if (groups.length === 1) {
+    return groups[0];
+  }
+  if (groups.length > 1) {
+    return null;
+  }
+
+  const quotes = [...tradingPanel.querySelectorAll("[role='radio']")]
+    .filter(isVisible)
+    .map(parseQuoteButton)
+    .filter(Boolean);
+  const marketKeys = new Set(quotes.map((quote) => quote.key.slice(0, quote.key.lastIndexOf("|"))));
+  return quotes.length === 2
+    && marketKeys.size === 1
+    && quotes.filter((quote) => quote.outcome === "Up").length === 1
+    && quotes.filter((quote) => quote.outcome === "Down").length === 1
+    ? tradingPanel
+    : null;
 }
 
 function getInlineQuotes() {
   const tradingPanel = findTradingPanelElement();
-  const outcomeGroup = tradingPanel && findOutcomeGroup(tradingPanel);
+  const outcomeGroup = (tradingPanel && findOutcomeGroup(tradingPanel))
+    || findOutcomeGroup(document);
   if (!outcomeGroup) {
     return [];
   }
@@ -464,7 +482,8 @@ function findCard(button) {
   const key = marketPaths.sort((left, right) =>
     right.split("/").length - left.split("/").length
   )[0] || market.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const routeMatch = link?.getAttribute("href")?.match(/\/(market|event)\/([^/?#]+)/);
+  const routeMatch = (link?.getAttribute("href") || location.pathname)
+    .match(/\/(market|event)\/([^/?#]+)/);
   const marketTitle = localHeading || linkTitle || pageTitle || document.title;
   return {
     market: market.slice(0, 100),

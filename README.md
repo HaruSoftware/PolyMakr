@@ -31,7 +31,7 @@ Cada regra define mercado (obtido da página em que foi criada), resultado (Up/D
 
 - **Somente notificar**: gera uma notificação do navegador quando o preço cruza o limite.
 - **Avisar e pedir confirmação**: gera um aviso; a confirmação manual dentro da extensão ainda não está integrada.
-- **Automatizar ordem limite**: ao cruzar o gatilho, seleciona o resultado e Buy/Sell, escolhe **Limit**, preenche preço e shares e clica em **Trade**. A carteira ou o Polymarket ainda podem pedir confirmação.
+- **Automatizar ordem limite**: não é necessário deixar o formulário de negociação aberto. Enquanto a página do mercado estiver aberta no Chrome, ao cruzar o gatilho a extensão seleciona o resultado para abrir/atualizar o formulário, escolhe Buy/Sell e **Limit**, preenche preço e shares e clica em **Trade**. A carteira ou o Polymarket ainda podem pedir confirmação; a extensão interrompe a tentativa se não conseguir identificar o mercado, o formulário ou os valores sem ambiguidade.
 
 Cada regra escolhe como entrar na fila:
 
