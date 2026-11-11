@@ -75,7 +75,7 @@ function syncAutoTradeTab() {
             <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
           </div>
           <div class="row">
-            <label>Quantidade (shares)<input name="shares" type="number" min="0.01" step="0.01" placeholder="ex.: 5" required></label>
+            <label>Quantidade (shares)<input name="shares" type="number" min="1" step="1" placeholder="ex.: 5" required></label>
             <label>Ordem de execução<select name="queuePolicy"><option value="ordered">Respeitar a fila</option><option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option></select></label>
           </div>
           <div class="row">
@@ -424,7 +424,10 @@ function parseQuoteButton(button) {
     outcome: match[1][0].toUpperCase() + match[1].slice(1).toLowerCase(),
     price,
     market: card.market,
-    key: `${card.key}|${match[1].toLowerCase()}`
+    marketTitle: card.marketTitle,
+    key: `${card.key}|${match[1].toLowerCase()}`,
+    marketSlug: card.marketSlug,
+    marketRoute: card.marketRoute
   };
 }
 
@@ -445,7 +448,8 @@ function findCard(button) {
     }
   }
 
-  const link = candidate.querySelector("a[href*='/event/'],a[href*='/market/']");
+  const link = candidate.querySelector("a[href*='/market/']")
+    || candidate.querySelector("a[href*='/event/']");
   const heading = candidate.querySelector("h1,h2,h3,h4,[role='heading']");
   const pageTitle = (document.querySelector("h1")?.innerText || "").replace(/\s+/g, " ").trim();
   const linkTitle = (link?.innerText || "").replace(/\s+/g, " ").trim();
@@ -460,5 +464,13 @@ function findCard(button) {
   const key = marketPaths.sort((left, right) =>
     right.split("/").length - left.split("/").length
   )[0] || market.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  return { market: market.slice(0, 100), key };
+  const routeMatch = link?.getAttribute("href")?.match(/\/(market|event)\/([^/?#]+)/);
+  const marketTitle = localHeading || linkTitle || pageTitle || document.title;
+  return {
+    market: market.slice(0, 100),
+    marketTitle: marketTitle.slice(0, 200),
+    key,
+    marketRoute: routeMatch?.[1] || "",
+    marketSlug: routeMatch?.[2] || ""
+  };
 }

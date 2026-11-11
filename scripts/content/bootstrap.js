@@ -1,6 +1,8 @@
 const HOST_ID = "polymakr-extension-root";
 const RULES_KEY = "polymakr.rules";
 const FAVORITES_KEY = "polymakr.favorites";
+const ARCHIVE_KEY = "polymakr.archive";
+const WALLET_KEY = "polymakr.walletAddress";
 const EXECUTION_STATE_PREFIX = "polymakr.execution.";
 const EXECUTION_SCHEMA_KEY = "polymakr.executionSchema";
 const host = document.createElement("div");
@@ -28,7 +30,7 @@ shadow.innerHTML = `
     .top strong { font-size: 15px; }
     .top small { display: block; color: #78827b; font-size: 11px; }
     .close { border: 0; background: transparent; color: #59645d; cursor: pointer; font-size: 20px; }
-    .tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
     .tab { padding: 8px; border: 0; border-radius: 8px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
     .tab[aria-selected="true"] { background: #e8f4ec; color: #087c3b; }
     .view { display: none; max-height: min(620px, calc(100vh - 150px)); overflow: auto; padding: 18px; }
@@ -138,6 +140,14 @@ shadow.innerHTML = `
     .favorite-dialog-save { background: #e58b16; color: #fff; }
     .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .count-chip { padding: 4px 8px; border-radius: 999px; background: #f1f3f1; color: #59645d; font-size: 10px; font-weight: 700; }
+    .archive-list { display: grid; gap: 8px; margin-top: 12px; }
+    .archive-card { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; color: #435047; font-size: 11px; overflow-wrap: anywhere; }
+    .archive-card p { margin: 0; }
+    .archive-status { color: #087c3b; font-weight: 750; }
+    .archive-error { color: #a33b2e; }
+    .wallet-settings { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; margin-top: 12px; }
+    .wallet-settings button { min-height: 36px; padding: 7px 10px; border: 0; border-radius: 7px; background: #087c3b; color: #fff; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .wallet-help { grid-column: 1 / -1; margin: -4px 0 0; color: #78827b; font-size: 10px; }
     @media (max-width: 700px) {
       .board { grid-template-columns: repeat(3, minmax(220px, 1fr)); overflow-x: auto; padding-bottom: 5px; }
       .view[data-panel="rules"] { padding: 12px; }
@@ -152,6 +162,7 @@ shadow.innerHTML = `
     <nav class="tabs" role="tablist" aria-label="Seções do PolyMakr">
       <button class="tab" type="button" role="tab" data-view="create" aria-selected="true">Criar</button>
       <button class="tab" type="button" role="tab" data-view="rules" aria-selected="false">Regras</button>
+      <button class="tab" type="button" role="tab" data-view="archive" aria-selected="false">Registro</button>
     </nav>
     <div class="view active" data-panel="create" role="tabpanel">
       <h2 class="form-heading">Criar regra</h2>
@@ -168,7 +179,7 @@ shadow.innerHTML = `
           <label>Preço da ordem limite (¢)<input name="orderLimitCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
         </div>
         <div class="row">
-          <label>Quantidade (shares)<input name="shares" type="number" min="0.01" step="0.01" placeholder="ex.: 5" required></label>
+          <label>Quantidade (shares)<input name="shares" type="number" min="1" step="1" placeholder="ex.: 5" required></label>
           <label>Expiração<select name="expiration"><option value="never">Never</option></select></label>
         </div>
         <label>Quando disparar<select name="mode">
@@ -204,6 +215,15 @@ shadow.innerHTML = `
         </section>
       </div>
     </div>
+    <div class="view" data-panel="archive" role="tabpanel" hidden>
+      <div class="section-heading"><h2>Registro de regras</h2><span class="count-chip archive-count">0</span></div>
+      <form class="wallet-settings">
+        <label>Carteira pública (proxy wallet)<input name="walletAddress" type="text" maxlength="42" placeholder="0x..." autocomplete="off"></label>
+        <button type="submit">Salvar carteira</button>
+        <p class="wallet-help">Use o endereço público/proxy exibido na conta do Polymarket. Não informe chave privada nem credenciais.</p>
+      </form>
+      <div class="archive-list"></div>
+    </div>
   </section>
   <div class="toast-stack" aria-live="polite" aria-relevant="additions"></div>
   <div class="favorite-dialog-backdrop" hidden>
@@ -226,6 +246,9 @@ const quoteOptions = shadow.querySelector(".market-outcomes");
 const queueRulesElement = shadow.querySelector(".queue-rules");
 const immediateRulesElement = shadow.querySelector(".immediate-rules");
 const favoritesElement = shadow.querySelector(".favorites");
+const archiveElement = shadow.querySelector(".archive-list");
+const walletForm = shadow.querySelector(".wallet-settings");
+const walletInput = walletForm.querySelector('[name="walletAddress"]');
 const toastStack = shadow.querySelector(".toast-stack");
 const favoriteDialogBackdrop = shadow.querySelector(".favorite-dialog-backdrop");
 const favoriteDialog = shadow.querySelector(".favorite-dialog");
@@ -237,6 +260,8 @@ const cancelEditButton = shadow.querySelector(".cancel-edit");
 const tradingSideGroups = new WeakSet();
 let rules = [];
 let favorites = [];
+let archivedRules = [];
+let walletAddress = "";
 let quotes = [];
 let activeMarketKey = "";
 let executionStates = {};
@@ -299,6 +324,14 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     favorites = changes[FAVORITES_KEY].newValue;
     renderRules();
   }
+  if (changes[ARCHIVE_KEY]?.newValue) {
+    archivedRules = Array.isArray(changes[ARCHIVE_KEY].newValue) ? changes[ARCHIVE_KEY].newValue : [];
+    renderArchive();
+  }
+  if (changes[WALLET_KEY]?.newValue !== undefined) {
+    walletAddress = changes[WALLET_KEY].newValue || "";
+    walletInput.value = walletAddress;
+  }
   const stateKey = activeMarketKey && executionStorageKey(activeMarketKey);
   if (stateKey && changes[stateKey]?.newValue) {
     executionStates = changes[stateKey].newValue;
@@ -309,6 +342,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 migrateMarketAgnosticStorage().then(async (stored) => {
   rules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
   favorites = Array.isArray(stored[FAVORITES_KEY]) ? stored[FAVORITES_KEY] : [];
+  archivedRules = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
+  walletAddress = typeof stored[WALLET_KEY] === "string" ? stored[WALLET_KEY] : "";
+  walletInput.value = walletAddress;
   let migratedFavorites = false;
   rules = rules.map((rule) => {
     if (!rule.favorite) return rule;
@@ -325,6 +361,7 @@ migrateMarketAgnosticStorage().then(async (stored) => {
     return cleanRule;
   });
   renderRules();
+  renderArchive();
   if (migratedFavorites) {
     try {
       await navigator.locks.request("polymakr-rules-storage", async () => {
@@ -336,6 +373,7 @@ migrateMarketAgnosticStorage().then(async (stored) => {
           delete cleanRule.favorite;
           return cleanRule;
         });
+
         await chrome.storage.local.set({ [RULES_KEY]: cleanedRules });
         rules = cleanedRules;
       });
@@ -348,6 +386,25 @@ migrateMarketAgnosticStorage().then(async (stored) => {
 }).catch((error) => {
   showToast("Não foi possível carregar as regras", error.message || String(error), "error");
 });
+
+walletForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const value = walletInput.value.trim();
+  if (value && !/^0x[a-fA-F0-9]{40}$/.test(value)) {
+    walletInput.setCustomValidity("Informe um endereço público EVM válido (0x seguido de 40 caracteres hexadecimais).");
+    walletInput.reportValidity();
+    return;
+  }
+  walletInput.setCustomValidity("");
+  try {
+    walletAddress = value.toLowerCase();
+    await chrome.storage.local.set({ [WALLET_KEY]: walletAddress });
+    showToast("Carteira salva", "O endereço público será associado às novas regras automatizadas.", "success");
+  } catch (error) {
+    showToast("Não foi possível salvar a carteira", error.message || String(error), "error");
+  }
+});
+walletInput.addEventListener("input", () => walletInput.setCustomValidity(""));
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();

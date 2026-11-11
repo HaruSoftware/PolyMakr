@@ -69,6 +69,65 @@ function renderRules() {
   shadow.querySelector('[data-lane="favorites"] .lane-count').textContent = String(favorites.length);
 }
 
+function renderArchive() {
+  archiveElement.replaceChildren();
+  const sortedArchive = [...archivedRules].sort((left, right) =>
+    Number(right.updatedAt || right.archivedAt || right.createdAt)
+      - Number(left.updatedAt || left.archivedAt || left.createdAt)
+  );
+  shadow.querySelector(".archive-count").textContent = String(sortedArchive.length);
+  if (sortedArchive.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "As regras removidas ou disparadas aparecerão aqui.";
+    archiveElement.append(empty);
+    return;
+  }
+
+  const statusLabels = {
+    awaiting_fill: "Aguardando preenchimento",
+    partially_filled: "Preenchida parcialmente",
+    filled: "Preenchida",
+    completed: "Concluída",
+    failed: "Falhou",
+    cancelled: "Cancelada",
+    submitted_untracked: "Enviada — sem acompanhamento"
+  };
+  for (const entry of sortedArchive) {
+    const rule = entry.rule || entry;
+    const card = document.createElement("article");
+    card.className = "archive-card";
+    const status = document.createElement("p");
+    status.className = "archive-status";
+    status.textContent = `${statusLabels[entry.status] || "Registrada"} · ${new Date(entry.updatedAt || entry.archivedAt || entry.createdAt).toLocaleString("pt-BR")}`;
+    const action = document.createElement("p");
+    action.textContent = `${rule.side === "buy" ? "Compra" : "Venda"} ${rule.outcome} · ${rule.shares ?? rule.amount} shares · gatilho ${rule.triggerCents ?? rule.limitCents}¢ · limite ${rule.orderLimitCents ?? rule.limitCents}¢`;
+    const market = document.createElement("p");
+    market.textContent = `Mercado: ${rule.marketTitle || rule.marketKey || "não identificado"}`;
+    const message = document.createElement("p");
+    message.textContent = entry.message || "";
+    card.append(status, action, market, message);
+    if (Number(entry.matchedShares) > 0) {
+      const fills = document.createElement("p");
+      fills.textContent = `Fill observado: ${entry.matchedShares} de ${rule.shares ?? rule.amount} shares`;
+      card.append(fills);
+    }
+    if (entry.trackingError) {
+      const error = document.createElement("p");
+      error.className = "archive-error";
+      error.textContent = `Acompanhamento: ${entry.trackingError}`;
+      card.append(error);
+    }
+    if (rule.mode === "auto_limit"
+      && ["awaiting_fill", "partially_filled", "filled", "submitted_untracked"].includes(entry.status)) {
+      const caveat = document.createElement("p");
+      caveat.textContent = "Confirmação baseada em trades públicos compatíveis; a API pública não informa o ID da ordem.";
+      card.append(caveat);
+    }
+    archiveElement.append(card);
+  }
+}
+
 function renderRuleList(container, list, queuePolicy) {
   container.replaceChildren();
   if (list.length === 0) {
@@ -98,6 +157,9 @@ function renderRuleList(container, list, queuePolicy) {
       monitoring: "Monitorando",
       queued: "Na fila",
       processing: "Executando",
+      awaiting_fill: "Aguardando preenchimento",
+      partially_filled: "Preenchida parcialmente",
+      filled: "Preenchida",
       completed: "Concluída",
       clicked: "Trade enviado",
       failed: "Falhou"
@@ -147,18 +209,18 @@ function renderRuleList(container, list, queuePolicy) {
     const triggerValue = document.createElement("strong");
     triggerValue.textContent = `${triggerPrice.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}¢`;
     trigger.append(triggerValue);
-    const remove = createCardRemoveButton("Remover regra", () => removeRule(rule));
+    const remove = createCardRemoveButton("Arquivar regra", () => removeRule(rule), "Arquivar");
     meta.append(trigger, remove);
     row.append(meta);
     container.append(row);
   }
 }
 
-function createCardRemoveButton(label, onClick) {
+function createCardRemoveButton(label, onClick, buttonText = "Remover") {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "card-remove";
-  button.textContent = "Remover";
+  button.textContent = buttonText;
   button.setAttribute("aria-label", label);
   button.addEventListener("click", async (event) => {
     event.stopPropagation();
@@ -168,16 +230,43 @@ function createCardRemoveButton(label, onClick) {
 }
 
 async function removeRule(rule) {
-  const previous = rules;
-  rules = rules.filter((item) => item.id !== rule.id);
   try {
-    await persistRules();
-    renderRules();
-    showToast("Regra removida", "A regra foi removida da fila e do histórico.", "success");
+    let pending = false;
+    try {
+      pending = await hasPendingRuleExecution(rule.id);
+    } catch (error) {
+      showToast("Não foi possível verificar a regra", error.message || String(error), "error");
+      return;
+    }
+    if (pending) {
+      showToast("Regra em execução", "A regra não pode ser arquivada enquanto aguarda execução.", "warning");
+      return;
+    }
+    const execution = executionStates[rule.id] || {};
+    const untrackedOrder = rule.mode === "auto_limit"
+      && ["clicked", "completed"].includes(execution.status)
+      && !execution.conditionId;
+    const trackingStatus = ["awaiting_fill", "partially_filled", "filled"].includes(execution.status)
+      ? execution.status
+      : "";
+    const status = trackingStatus || (untrackedOrder ? "submitted_untracked"
+      : execution.status === "failed" ? "failed"
+        : execution.status === "completed" ? "completed" : "cancelled");
+    const message = untrackedOrder
+      ? "Trade enviado antes da ativação do acompanhamento de fills; verifique o Polymarket."
+      : execution.message || "Regra removida antes do disparo.";
+    await moveRuleToArchive(rule, status, message, {
+      triggeredPrice: execution.triggeredPrice,
+      submittedAt: execution.submittedAt,
+      conditionId: execution.conditionId,
+      assetId: execution.assetId,
+      baselineTradeKeys: execution.baselineTradeKeys,
+      matchedTradeKeys: execution.matchedTradeKeys || [],
+      matchedShares: execution.matchedShares || 0
+    });
+    showToast("Regra movida para o Registro", "O histórico foi preservado.", "success");
   } catch (error) {
-    rules = previous;
-    showToast("Não foi possível remover", error.message || String(error), "error");
-    renderRules();
+    showToast("Não foi possível arquivar a regra", error.message || String(error), "error");
   }
 }
 
@@ -217,7 +306,7 @@ function createRuleMore(rule, details) {
   info.append(execution, policy);
   const actions = document.createElement("div");
   actions.className = "more-actions";
-  const canMove = details.state !== "queued" && details.state !== "processing";
+  const canMove = !["queued", "processing", "awaiting_fill", "partially_filled", "filled"].includes(details.state);
   if (canMove) {
     const move = document.createElement("button");
     move.type = "button";
@@ -455,6 +544,10 @@ function placeOrderedRule(nextRules, ruleId, targetRuleId, insertAfter) {
 }
 
 async function moveRuleToLane(rule, queuePolicy, targetRuleId, insertAfter = false) {
+  if (["awaiting_fill", "partially_filled", "filled"].includes(executionStates[rule.id]?.status)) {
+    showToast("Ordem em acompanhamento", "Não é possível mover uma regra depois que a ordem foi enviada.", "warning");
+    return;
+  }
   let pending;
   try {
     pending = await hasPendingRuleExecution(rule.id);
@@ -494,8 +587,18 @@ async function activateFavorite(favorite, queuePolicy, targetRuleId, insertAfter
     showToast("Mercado não identificado", "Abra o painel de negociação do mercado em que deseja criar a regra.", "warning");
     return;
   }
+  if (favorite.mode === "auto_limit" && !/^0x[a-fA-F0-9]{40}$/.test(walletAddress || "")) {
+    showToast("Configure a carteira pública", "Informe seu endereço público na aba Registro antes de ativar esta regra automatizada.", "warning");
+    selectView("archive");
+    walletInput.focus();
+    return;
+  }
+  const quote = quotes.find((item) => item.outcome === favorite.outcome);
   const rule = {
     marketKey: activeMarketKey,
+    marketTitle: quote?.marketTitle || quote?.market || "",
+    marketSlug: quote?.marketSlug || "",
+    marketRoute: quote?.marketRoute || "",
     outcome: favorite.outcome,
     side: favorite.side,
     trigger: favorite.trigger || "reaches",
@@ -504,6 +607,7 @@ async function activateFavorite(favorite, queuePolicy, targetRuleId, insertAfter
     shares: favorite.shares === undefined ? Number(favorite.amount) : Number(favorite.shares),
     expiration: favorite.expiration || "never",
     mode: favorite.mode || "notify",
+    walletAddress: favorite.mode === "auto_limit" ? walletAddress.toLowerCase() : "",
     queuePolicy,
     id: crypto.randomUUID(),
     enabled: true,

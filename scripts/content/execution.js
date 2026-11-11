@@ -32,7 +32,9 @@ async function scan() {
   }
   renderQuotes();
   renderRules();
-  if (Object.values(executionStates).some((state) => state.status === "queued")) {
+  if (Object.values(executionStates).some((state) =>
+    ["queued", "completed", "failed", "clicked", "awaiting_fill", "partially_filled", "filled"].includes(state.status)
+  )) {
     await processRuleQueue();
   }
   scheduleNextScan();
@@ -200,6 +202,28 @@ async function processQueuedRulesLocked(marketKey, states) {
   }
   if (recoveredInterruptedExecution) await saveExecutionStates(marketKey, states);
 
+  for (const rule of [...rules]) {
+    const state = states[rule.id];
+    if (!state || !["completed", "failed", "clicked", "awaiting_fill", "partially_filled", "filled"].includes(state.status)) continue;
+    const archiveStatus = state.status === "clicked"
+      || (state.status === "completed" && rule.mode === "auto_limit" && !state.conditionId)
+      ? "submitted_untracked"
+      : state.status;
+    try {
+      await moveRuleToArchive(rule, archiveStatus, state.message, {
+        triggeredPrice: state.triggeredPrice,
+        submittedAt: state.submittedAt,
+        conditionId: state.conditionId,
+        assetId: state.assetId,
+        baselineTradeKeys: state.baselineTradeKeys,
+        matchedTradeKeys: state.matchedTradeKeys || [],
+        matchedShares: state.matchedShares || 0
+      });
+    } catch (error) {
+      showToast("Não foi possível mover a regra para o Registro", error.message || String(error), "error");
+    }
+  }
+
   while (true) {
     const rule = findNextQueuedRule(states);
     if (!rule) return;
@@ -235,30 +259,70 @@ async function processQueuedRulesLocked(marketKey, states) {
     }
 
     const summary = ruleSummary(rule, quote, states[rule.id]);
+    let orderWasSent = false;
+    let actionCompleted = false;
+    let trackingDetails = null;
     try {
       if (rule.mode === "auto_limit") {
-        await executeLimitOrder(rule, quote);
-        states[rule.id].message = "Concluída — clique em Trade enviado; confira o status da ordem no Polymarket.";
+        trackingDetails = await executeLimitOrder(rule, quote);
+        orderWasSent = true;
+        states[rule.id] = {
+          ...states[rule.id],
+          ...trackingDetails,
+          status: "awaiting_fill",
+          message: "Trade enviado; aguardando um preenchimento compatível na atividade pública da carteira.",
+          updatedAt: Date.now()
+        };
+        await saveExecutionStates(marketKey, states);
+        await moveRuleToArchive(rule, "awaiting_fill", states[rule.id].message, {
+          triggeredPrice: states[rule.id].triggeredPrice,
+          ...trackingDetails,
+          matchedShares: 0,
+          matchedTradeKeys: []
+        });
+        sendRuleNotification(`${summary} Trade enviado; aguardando confirmação de fills na carteira.`, rule.side === "buy" ? "Comprar" : "Vender");
+        continue;
       } else {
         const notice = rule.mode === "confirm"
           ? "Confirmação não conectada; somente aviso."
           : "Somente alerta.";
         states[rule.id].message = "Concluída — aviso enviado.";
         sendRuleNotification(`${summary} ${notice}`, rule.side === "buy" ? "Comprar" : "Vender");
+        actionCompleted = true;
       }
       states[rule.id].status = "completed";
       states[rule.id].updatedAt = Date.now();
       await saveExecutionStates(marketKey, states);
-      if (rule.mode === "auto_limit") {
-        sendRuleNotification(`${summary} Clique em Trade enviado. Confira a ordem no Polymarket e confirme a carteira se solicitado.`, rule.side === "buy" ? "Comprar" : "Vender");
-      }
+      await moveRuleToArchive(rule, "completed", states[rule.id].message, {
+        triggeredPrice: states[rule.id].triggeredPrice
+      });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
-      states[rule.id].status = "failed";
-      states[rule.id].message = `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
+      states[rule.id].status = orderWasSent ? "awaiting_fill" : actionCompleted ? "completed" : "failed";
+      states[rule.id].message = orderWasSent
+        ? `Trade enviado; erro ao salvar o acompanhamento: ${reason}. Verifique a carteira.`
+        : actionCompleted
+          ? `Ação executada; erro ao salvar o registro: ${reason}.`
+          : `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
       states[rule.id].updatedAt = Date.now();
       try {
         await saveExecutionStates(marketKey, states);
+        if (!orderWasSent && !actionCompleted) {
+          await moveRuleToArchive(rule, "failed", states[rule.id].message, {
+            triggeredPrice: states[rule.id].triggeredPrice
+          });
+        } else if (trackingDetails) {
+          await moveRuleToArchive(rule, "awaiting_fill", states[rule.id].message, {
+            triggeredPrice: states[rule.id].triggeredPrice,
+            ...trackingDetails,
+            matchedShares: 0,
+            matchedTradeKeys: []
+          });
+        } else if (actionCompleted) {
+          await moveRuleToArchive(rule, "completed", states[rule.id].message, {
+            triggeredPrice: states[rule.id].triggeredPrice
+          });
+        }
       } catch (storageError) {
         states[rule.id].message += ` Também não foi possível salvar o estado: ${storageError.message || storageError}.`;
       }
@@ -281,7 +345,7 @@ function findNextQueuedRule(states) {
     rule.enabled !== false
     && rule.marketKey === activeMarketKey
     && rule.queuePolicy !== "independent"
-    && !["completed", "failed", "clicked"].includes(states[rule.id]?.status)
+    && !["completed", "failed", "clicked", "awaiting_fill", "partially_filled", "filled"].includes(states[rule.id]?.status)
   );
   return states[firstOrderedRule?.id]?.status === "queued"
     && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome)
@@ -310,6 +374,7 @@ async function executeLimitOrder(rule, quote) {
   }
 
   if (!["buy", "sell"].includes(rule.side)
+    || !/^0x[a-fA-F0-9]{40}$/.test(rule.walletAddress || "")
     || !Number.isFinite(Number(rule.orderLimitCents))
     || Number(rule.orderLimitCents) <= 0
     || Number(rule.orderLimitCents) >= 100
@@ -326,6 +391,8 @@ async function executeLimitOrder(rule, quote) {
     || currentQuote.outcome !== rule.outcome) {
     throw new Error("O botão do resultado no mercado ativo não está mais disponível.");
   }
+
+  const marketData = await resolveMarketTradingData(rule);
 
   quoteButton.click();
   await waitForPageUpdate();
@@ -370,7 +437,104 @@ async function executeLimitOrder(rule, quote) {
   if (!tradeButton || tradeButton.disabled) {
     throw new Error("O botão Trade não está disponível para enviar a ordem.");
   }
-  tradeButton.click();
+  const baselineTrades = await loadBaselineTrades(rule, marketData);
+  panel = findTradingPanelElement();
+  const currentTradeButton = panel && findExactControl(panel, "Trade");
+  if (!currentTradeButton || currentTradeButton.disabled) {
+    throw new Error("O botão Trade deixou de estar disponível enquanto os trades eram consultados.");
+  }
+  const submittedAt = Date.now();
+  currentTradeButton.click();
+  const baselineTradeKeys = baselineTrades
+    .filter((trade) => tradeTimestampMs(trade) >= Math.floor(submittedAt / 1000) * 1000 - 1000)
+    .map(publicTradeKey);
+  return {
+    submittedAt,
+    walletAddress: rule.walletAddress.toLowerCase(),
+    conditionId: marketData.conditionId,
+    assetId: marketData.assetId,
+    baselineTradeKeys
+  };
+}
+
+async function resolveMarketTradingData(rule) {
+  if (!rule.marketSlug || !["market", "event"].includes(rule.marketRoute)) {
+    throw new Error("Não foi possível identificar o slug do mercado para acompanhar os fills.");
+  }
+  const route = rule.marketRoute === "market" ? "markets" : "events";
+  const response = await fetch(`https://gamma-api.polymarket.com/${route}/slug/${encodeURIComponent(rule.marketSlug)}`);
+  if (!response.ok) {
+    throw new Error(`O Polymarket não retornou os dados do mercado (${response.status}).`);
+  }
+  const result = await response.json();
+  const markets = rule.marketRoute === "event"
+    ? (Array.isArray(result) ? result.flatMap((event) => event.markets || []) : result.markets || [])
+    : [result];
+  const question = normalizeMarketLabel(rule.marketTitle || "");
+  const exactMatches = markets.filter((market) => normalizeMarketLabel(market.question || "") === question);
+  const candidates = exactMatches.length ? exactMatches : markets.length === 1 ? markets : [];
+  if (candidates.length !== 1) {
+    throw new Error("Não foi possível associar este resultado a um único mercado do Polymarket.");
+  }
+  const market = candidates[0];
+  const outcomes = parseMarketArray(market.outcomes);
+  const assetIds = market.version === "v2"
+    ? parseMarketArray(market.positionIds)
+    : parseMarketArray(market.clobTokenIds);
+  const outcomeIndex = outcomes.findIndex((outcome) => normalizeMarketLabel(outcome) === normalizeMarketLabel(rule.outcome));
+  if (!market.conditionId || outcomeIndex < 0 || !assetIds[outcomeIndex]) {
+    throw new Error("O mercado não forneceu identificadores válidos para acompanhar o resultado escolhido.");
+  }
+  return { conditionId: market.conditionId, assetId: String(assetIds[outcomeIndex]) };
+}
+
+function parseMarketArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeMarketLabel(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+async function loadBaselineTrades(rule, marketData) {
+  const url = new URL("https://data-api.polymarket.com/v2/trades");
+  url.searchParams.set("user", rule.walletAddress.toLowerCase());
+  url.searchParams.set("condition", marketData.conditionId);
+  url.searchParams.set("limit", "100");
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Não foi possível consultar os trades públicos da carteira (${response.status}).`);
+  }
+  const result = await response.json();
+  if (!Array.isArray(result.data)) {
+    throw new Error("A resposta de trades públicos do Polymarket está em formato inesperado.");
+  }
+  return result.data
+    .filter((trade) => String(trade.token_id) === marketData.assetId
+      && String(trade.side).toLowerCase() === rule.side);
+}
+
+function tradeTimestampMs(trade) {
+  const timestamp = Number(trade.timestamp);
+  return timestamp < 1e12 ? timestamp * 1000 : timestamp;
+}
+
+function publicTradeKey(trade) {
+  return [
+    trade.transaction_hash,
+    trade.timestamp,
+    trade.token_id,
+    trade.side,
+    trade.size,
+    trade.price
+  ].join("|");
 }
 
 async function selectTradeSide(panel, side) {

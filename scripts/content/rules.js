@@ -15,6 +15,9 @@ function createRuleDraft(data, defaultMode = "notify") {
   const orderLimitCents = Number(data.get("orderLimitCents"));
   const shares = Number(data.get("shares"));
   const side = data.get("side");
+  const mode = data.get("mode") || defaultMode;
+  const selectedQuote = quotes.find((item) => item.key === selectedQuoteKey);
+  const ruleWalletAddress = walletAddress || oldRule?.walletAddress || "";
   if (!quote) {
     showToast("Selecione o resultado", "Escolha Up ou Down antes de salvar a regra.", "error");
     return null;
@@ -26,13 +29,22 @@ function createRuleDraft(data, defaultMode = "notify") {
   if (!activeMarketKey
     || !Number.isFinite(triggerCents) || triggerCents <= 0 || triggerCents >= 100
     || !Number.isFinite(orderLimitCents) || orderLimitCents <= 0 || orderLimitCents >= 100
-    || !Number.isFinite(shares) || shares < 0.01) {
-    showToast("Confira os dados da regra", "Abra o painel de negociação do mercado em que deseja usar esta regra e informe gatilho, preço limite e quantidade válidos.", "error");
+    || !Number.isInteger(shares) || shares < 1) {
+    showToast("Confira os dados da regra", "Abra o painel de negociação do mercado em que deseja usar esta regra e informe gatilho, preço limite e uma quantidade inteira de pelo menos 1 share.", "error");
+    return null;
+  }
+  if (mode === "auto_limit" && !/^0x[a-fA-F0-9]{40}$/.test(ruleWalletAddress)) {
+    showToast("Configure a carteira pública", "Informe seu endereço público na aba Registro para acompanhar os fills da ordem.", "error");
+    selectView("archive");
+    walletInput.focus();
     return null;
   }
 
   return {
     marketKey: activeMarketKey,
+    marketTitle: selectedQuote?.marketTitle || selectedQuote?.market || oldRule?.marketTitle || "",
+    marketSlug: selectedQuote?.marketSlug || oldRule?.marketSlug || "",
+    marketRoute: selectedQuote?.marketRoute || oldRule?.marketRoute || "",
     outcome: quote.outcome,
     side,
     trigger: data.get("trigger"),
@@ -40,7 +52,8 @@ function createRuleDraft(data, defaultMode = "notify") {
     orderLimitCents,
     shares,
     expiration: data.get("expiration") || "never",
-    mode: data.get("mode") || defaultMode,
+    mode,
+    walletAddress: mode === "auto_limit" ? ruleWalletAddress.toLowerCase() : "",
     queuePolicy: data.get("queuePolicy") === "independent" ? "independent" : "ordered"
   };
 }
@@ -88,14 +101,50 @@ function persistRules() {
   const marketKey = activeMarketKey;
   const write = () => navigator.locks.request("polymakr-rules-storage", async () => {
     if (!marketKey) throw new Error("Não foi possível identificar o mercado desta página.");
-    const stored = await chrome.storage.local.get(RULES_KEY);
+    const stored = await chrome.storage.local.get([RULES_KEY, ARCHIVE_KEY]);
     const currentRules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
+    const archivedRuleIds = new Set(
+      (Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : []).map((item) => item.id)
+    );
     const nextRules = [
       ...currentRules.filter((rule) => rule.marketKey !== marketKey),
-      ...snapshot.filter((rule) => rule.marketKey === marketKey)
+      ...snapshot.filter((rule) => rule.marketKey === marketKey && !archivedRuleIds.has(rule.id))
     ];
     await chrome.storage.local.set({ [RULES_KEY]: nextRules });
     rules = nextRules;
+  });
+  rulesWrite = rulesWrite.then(write, write);
+  return rulesWrite;
+}
+
+function moveRuleToArchive(rule, status, message, details = {}) {
+  const record = {
+    id: rule.id,
+    rule: { ...rule },
+    status,
+    message,
+    createdAt: rule.createdAt || Date.now(),
+    archivedAt: Date.now(),
+    updatedAt: Date.now(),
+    ...details
+  };
+  const write = () => navigator.locks.request("polymakr-rules-storage", async () => {
+    const stored = await chrome.storage.local.get([RULES_KEY, ARCHIVE_KEY]);
+    const storedRules = Array.isArray(stored[RULES_KEY]) ? stored[RULES_KEY] : [];
+    const storedArchive = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
+    const previousRecord = storedArchive.find((item) => item.id === record.id);
+    const nextArchive = previousRecord
+      ? storedArchive
+      : [...storedArchive, record];
+    const nextRules = storedRules.filter((item) => item.id !== rule.id);
+    await chrome.storage.local.set({
+      [RULES_KEY]: nextRules,
+      [ARCHIVE_KEY]: nextArchive
+    });
+    rules = nextRules;
+    archivedRules = nextArchive;
+    renderRules();
+    renderArchive();
   });
   rulesWrite = rulesWrite.then(write, write);
   return rulesWrite;
