@@ -30,7 +30,7 @@ shadow.innerHTML = `
     .top strong { font-size: 15px; }
     .top small { display: block; color: #78827b; font-size: 11px; }
     .close { border: 0; background: transparent; color: #59645d; cursor: pointer; font-size: 20px; }
-    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
+    .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
     .tab { padding: 8px; border: 0; border-radius: 8px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
     .tab[aria-selected="true"] { background: #e8f4ec; color: #087c3b; }
     .view { display: none; max-height: min(620px, calc(100vh - 150px)); overflow: auto; padding: 18px; }
@@ -94,6 +94,7 @@ shadow.innerHTML = `
     .trade-outcome.up { background: #e4f5ea; color: #087c3b; }
     .trade-outcome.down { background: #fde9e8; color: #a33b2e; }
     .action-icon.auto_limit { background: #e8efff; color: #3156a8; }
+    .action-icon.paper { background: #e8f4ec; color: #087c3b; }
     .action-icon.confirm { background: #fff3d8; color: #8a5a00; }
     .more { position: relative; flex: 0 0 auto; }
     .more summary { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 5px; color: #59645d; cursor: pointer; font-size: 16px; font-weight: 800; line-height: 1; list-style: none; }
@@ -148,6 +149,18 @@ shadow.innerHTML = `
     .wallet-settings { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; margin-top: 12px; }
     .wallet-settings button { min-height: 36px; padding: 7px 10px; border: 0; border-radius: 7px; background: #087c3b; color: #fff; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
     .wallet-help { grid-column: 1 / -1; margin: -4px 0 0; color: #78827b; font-size: 10px; }
+    .simulation-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .simulation-metric { min-width: 0; padding: 10px; border-radius: 9px; background: #f5f7f5; }
+    .simulation-metric span { display: block; color: #78827b; font-size: 10px; }
+    .simulation-metric strong { display: block; margin-top: 3px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .simulation-note { margin: 10px 0 16px; color: #78827b; font-size: 10px; }
+    .simulation-section { display: grid; gap: 7px; margin-top: 16px; }
+    .simulation-section h3 { margin: 0; font-size: 12px; }
+    .simulation-list { display: grid; gap: 7px; }
+    .simulation-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 9px 10px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; }
+    .simulation-card strong { min-width: 0; overflow-wrap: anywhere; font-size: 11px; }
+    .simulation-card p { flex: 1 1 260px; margin: 0; color: #657168; font-size: 10px; }
+    .simulation-cancel { padding: 5px 8px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; }
     .archive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .archive-select-all { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; color: #59645d; font-size: 11px; }
     .archive-select-all input, .archive-card-select input { width: auto; margin: 0; }
@@ -181,6 +194,7 @@ shadow.innerHTML = `
       <button class="tab" type="button" role="tab" data-view="create" aria-selected="true">Criar</button>
       <button class="tab" type="button" role="tab" data-view="rules" aria-selected="false">Regras</button>
       <button class="tab" type="button" role="tab" data-view="archive" aria-selected="false">Registro</button>
+      <button class="tab" type="button" role="tab" data-view="simulation" aria-selected="false">Simulação</button>
     </nav>
     <div class="view active" data-panel="create" role="tabpanel">
       <h2 class="form-heading">Criar regra</h2>
@@ -203,7 +217,8 @@ shadow.innerHTML = `
         <label>Quando disparar<select name="mode">
           <option value="notify">Somente notificar</option>
           <option value="confirm">Avisar e pedir confirmação</option>
-          <option value="auto_limit">Automatizar ordem limite</option>
+          <option value="paper">Simular ordem (carteira virtual)</option>
+          <option value="auto_limit">Enviar ordem real (automação no Polymarket)</option>
         </select></label>
         <label>Ordem de execução<select name="queuePolicy">
           <option value="ordered">Respeitar a fila</option>
@@ -247,6 +262,20 @@ shadow.innerHTML = `
       </div>
       <div class="archive-list"></div>
     </div>
+    <div class="view" data-panel="simulation" role="tabpanel" hidden>
+      <div class="section-heading"><h2>Simulação ao vivo</h2><span class="count-chip">Carteira virtual</span></div>
+      <p class="simulation-note">Saldo inicial virtual: US$ 1.000. Atualiza o livro a cada 2 segundos com a página do mercado aberta. As ordens não são enviadas à Polymarket; não há taxas nem liquidação de mercados resolvidos nesta versão.</p>
+      <div class="simulation-summary"></div>
+      <p class="simulation-status empty" role="status"></p>
+      <section class="simulation-section">
+        <h3>Posições</h3>
+        <div class="simulation-positions simulation-list"></div>
+      </section>
+      <section class="simulation-section">
+        <h3>Ordens</h3>
+        <div class="simulation-orders simulation-list"></div>
+      </section>
+    </div>
   </section>
   <div class="toast-stack" aria-live="polite" aria-relevant="additions"></div>
   <div class="favorite-dialog-backdrop" hidden>
@@ -280,6 +309,10 @@ const queueRulesElement = shadow.querySelector(".queue-rules");
 const immediateRulesElement = shadow.querySelector(".immediate-rules");
 const favoritesElement = shadow.querySelector(".favorites");
 const archiveElement = shadow.querySelector(".archive-list");
+const simulationSummaryElement = shadow.querySelector(".simulation-summary");
+const simulationStatusElement = shadow.querySelector(".simulation-status");
+const simulationPositionsElement = shadow.querySelector(".simulation-positions");
+const simulationOrdersElement = shadow.querySelector(".simulation-orders");
 const archiveSelectAllInput = shadow.querySelector(".archive-select-all-input");
 const archiveDeleteSelectedButton = shadow.querySelector(".archive-delete-selected");
 const archiveClearAllButton = shadow.querySelector(".archive-clear-all");
@@ -378,6 +411,13 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     walletAddress = changes[WALLET_KEY].newValue || "";
     walletInput.value = walletAddress;
   }
+  if ([SIMULATION_ACCOUNT_KEY, SIMULATION_ORDERS_KEY, SIMULATION_LEDGER_KEY]
+    .some((key) => changes[key])) {
+    refreshSimulation().catch((error) => {
+      simulationStatus = `Falha ao carregar simulação: ${error.message || error}`;
+      renderSimulation();
+    });
+  }
   const stateKey = activeMarketKey && executionStorageKey(activeMarketKey);
   if (stateKey && changes[stateKey]?.newValue) {
     executionStates = changes[stateKey].newValue;
@@ -408,6 +448,11 @@ migrateMarketAgnosticStorage().then(async (stored) => {
   });
   renderRules();
   renderArchive();
+  try {
+    await initializeSimulation();
+  } catch (error) {
+    showToast("Não foi possível iniciar a simulação", error.message || String(error), "error");
+  }
   if (migratedFavorites) {
     try {
       await navigator.locks.request("polymakr-rules-storage", async () => {

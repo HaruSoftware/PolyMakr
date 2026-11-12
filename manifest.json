@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PolyMakr",
   "version": "0.1.0",
-  "description": "Monitore preços do Polymarket e configure regras de alerta e ordem limite.",
+  "description": "Monitore preços do Polymarket e configure alertas, simulações e ordens limite.",
   "permissions": [
     "storage",
     "notifications",
@@ -13,6 +13,7 @@
     "https://polymarket.com/*",
     "https://*.polymarket.com/*",
     "https://gamma-api.polymarket.com/*",
+    "https://clob.polymarket.com/*",
     "https://data-api.polymarket.com/*"
   ],
   "background": {
@@ -32,6 +33,7 @@
         "scripts/content/rules.js",
         "scripts/content/polymarket.js",
         "scripts/content/execution.js",
+        "scripts/content/simulation.js",
         "scripts/content/views.js",
         "scripts/content/bootstrap.js"
       ],

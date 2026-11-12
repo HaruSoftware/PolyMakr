@@ -1,6 +1,6 @@
 # PolyMakr
 
-Extensão MV3 para Chrome que adiciona um painel ao Polymarket, acompanha preços Up/Down visíveis e guarda regras de alerta ou ordem limite localmente.
+Extensão MV3 para Chrome que adiciona um painel ao Polymarket, acompanha preços Up/Down visíveis e guarda regras de alerta, simulação ou ordem limite localmente.
 
 ## Organização
 
@@ -9,6 +9,7 @@ Extensão MV3 para Chrome que adiciona um painel ao Polymarket, acompanha preço
 - `scripts/content/rules.js`: regras, favoritos e persistência.
 - `scripts/content/polymarket.js`: integração com os controles e cotações da página.
 - `scripts/content/execution.js`: monitoramento de preços e execução da fila.
+- `scripts/content/simulation.js`: carteira virtual, ordens simuladas e acompanhamento do livro público.
 - `scripts/content/views.js`: renderização e edição das listas.
 - `scripts/content/bootstrap.js`: cria a interface, conecta os eventos e inicia o monitoramento.
 
@@ -20,7 +21,7 @@ Os scripts de conteúdo são JavaScript clássico, carregados na ordem declarada
 2. Selecione **Carregar sem compactação** e escolha a pasta deste projeto.
 3. Abra ou recarregue uma página de mercado no Polymarket.
 4. Clique no ícone da extensão e selecione **Abrir painel na página** para abrir a janela centralizada.
-5. Na aba **Criar**, escolha explicitamente o resultado **Up** ou **Down** e o lado da ordem (**Comprar** ou **Vender**), depois informe o preço de gatilho e o preço limite. A automação embutida no Polymarket também permite escolher Up/Down e Comprar/Vender, sem depender dos controles nativos. Nenhuma opção é selecionada automaticamente, e os preços Up/Down não preenchem os campos de preço. Cada regra fica vinculada ao mercado ativo identificado nesta página; ao abrir outro mercado, a lista mostra somente as regras daquele mercado. Favoritos são modelos reutilizáveis e, ao ativá-los, criam uma regra para o mercado da página atual.
+5. Na aba **Criar**, escolha explicitamente o resultado **Up** ou **Down** e o lado da ordem (**Comprar** ou **Vender**), depois informe o preço de gatilho e o preço limite. Selecione **Simular ordem (carteira virtual)** para enviar a regra ao simulador; nenhuma ordem real será enviada por esse modo. A automação embutida no Polymarket também permite escolher Up/Down e Comprar/Vender, sem depender dos controles nativos. Nenhuma opção é selecionada automaticamente, e os preços Up/Down não preenchem os campos de preço. Cada regra fica vinculada ao mercado ativo identificado nesta página; ao abrir outro mercado, a lista mostra somente as regras daquele mercado. Favoritos são modelos reutilizáveis e, ao ativá-los, criam uma regra para o mercado da página atual.
    Na aba **Regras**, o quadro mostra **Em Fila**, **Executar Imediato** e **Favoritos** lado a lado. Cada card mostra o preço de gatilho. Arraste regras entre as duas primeiras seções ou use o menu ⋮. Em **Em Fila**, arraste um card para cima/baixo de outro para definir a ordem de execução; a posição nas outras seções não altera o processamento. Regras em execução não podem ser movidas.
    A aba **Registro** conserva regras disparadas e removidas da fila em cards somente de texto. Regras automatizadas saem da fila quando o envio é tentado; o registro mostra aguardando, preenchimento parcial ou preenchida. Remover uma regra ainda não disparada também a arquiva, sem apagar seu histórico. É possível selecionar registros individuais ou todos para apagar; cada exclusão, inclusive **Limpar tudo**, exige confirmação em um popup. Para acompanhar fills automaticamente, informe nessa aba o endereço público/proxy wallet exibido na conta Polymarket. Favoritos permanecem reutilizáveis e não são arquivados até virarem regra.
    Arrastar um favorito para uma seção de regras cria uma nova regra e mantém o modelo salvo; Favoritos não aceita cards arrastados. O menu ⋮ também permite ver detalhes, editar, carregar um modelo no formulário e renomear. Editar uma regra concluída não a reativa. A extensão não altera o cartão de negociação do Polymarket.
@@ -42,8 +43,14 @@ As regras são sempre processadas uma por vez em cada mercado; uma regra indepen
 
 Cada regra dispara uma única vez no mercado ao qual está vinculada e não é executada de novo, inclusive depois de recarregar a página. Regras de outros mercados não aparecem na fila nem podem ser executadas pela página atual. Favoritos guardam também a preferência de fila e só entram nela quando você seleciona **Usar modelo** e depois salva uma regra. Se uma execução for interrompida ou incerta, confira o Polymarket antes de criar outra regra. Se os controles do formulário não forem identificados sem ambiguidade, a tentativa é interrompida e uma notificação explica o motivo. Os avisos também aparecem como notificações visuais no painel e como notificações do Chrome.
 
+## Simulação
+
+O modo **Simular ordem (carteira virtual)** acompanha o mercado ao vivo e cria uma ordem limite virtual na aba **Simulação**. A carteira começa com US$ 1.000 virtuais; compras reservam saldo e vendas exigem shares disponíveis. Ordens compram contra asks até o limite e vendem contra bids até o limite, respeitando a liquidez retornada pelo livro público. Preenchimentos parciais permanecem abertos e podem ser cancelados; o saldo, as posições, o histórico de ordens e o P&L realizado/não realizado ficam salvos localmente.
+
+Para acompanhar fills e atualizar o valor das posições, mantenha aberta a página do mercado correspondente no Polymarket; o livro é consultado a cada 2 segundos. A simulação não modela posição na fila, latência, taxas ou liquidação de mercados resolvidos; o P&L é bruto e pode diferir do resultado real. Posições são avaliadas pelo melhor bid disponível. A carteira virtual e suas ordens são separadas das ordens reais; os modos existentes de alerta e automação real continuam inalterados.
+
 O monitor lê os preços dos botões visíveis `Up` e `Down` para detectar o cruzamento do gatilho, mas não os mostra como opções nem os usa para preencher o gatilho ou o preço limite. Os preços e o layout podem variar; confira a associação de mercado/resultado antes de confiar em um alerta. Se a regra for criada antes da extensão observar um preço, ela só dispara após uma mudança que cruze o limite.
 
 ## Armazenamento e permissões
 
-As regras na fila, o Registro, o endereço público da carteira, os modelos favoritos e os estados de execução são salvos em `chrome.storage.local` neste navegador. Regras antigas com mercado identificável preservam esse vínculo e seu histórico. Regras antigas sem mercado identificável permanecem preservadas no armazenamento, mas não são exibidas nem executadas; recrie-as no mercado desejado. A extensão tem acesso às páginas do Polymarket e consulta a API pública do Polymarket para encontrar trades da carteira; não envia dados a um servidor próprio ou de terceiros.
+As regras na fila, o Registro, o endereço público da carteira, os modelos favoritos, os estados de execução, a carteira virtual, as ordens simuladas e o histórico de fills são salvos em `chrome.storage.local` neste navegador. Regras antigas com mercado identificável preservam esse vínculo e seu histórico. Regras antigas sem mercado identificável permanecem preservadas no armazenamento, mas não são exibidas nem executadas; recrie-as no mercado desejado. A extensão consulta APIs públicas do Polymarket para preços, livro de ofertas e trades da carteira; não envia dados a um servidor próprio ou de terceiros.

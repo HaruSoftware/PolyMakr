@@ -4,6 +4,18 @@ const ORDER_TRACKING_ALARM = "polymakr-order-tracking";
 let orderPollRunning = false;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "POLYMAKR_SIMULATION_BOOK") {
+    const tokenId = String(message.tokenId || "");
+    if (!/^\d+$/.test(tokenId)) {
+      sendResponse({ error: "Identificador do resultado inválido." });
+      return;
+    }
+    fetchSimulationOrderBook(tokenId)
+      .then((book) => sendResponse({ book }))
+      .catch((error) => sendResponse({ error: error.message || String(error) }));
+    return true;
+  }
+
   if (message?.type !== "POLYMAKR_NOTIFICATION") {
     return;
   }
@@ -24,6 +36,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   });
   return true;
 });
+
+async function fetchSimulationOrderBook(tokenId) {
+  const url = new URL("https://clob.polymarket.com/book");
+  url.searchParams.set("token_id", tokenId);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Consulta do livro de ofertas falhou (${response.status}).`);
+  }
+  const book = await response.json();
+  if (!Array.isArray(book.asks) || !Array.isArray(book.bids)) {
+    throw new Error("Resposta do livro de ofertas em formato inesperado.");
+  }
+  return { asks: book.asks, bids: book.bids, hash: book.hash };
+}
 
 chrome.runtime.onStartup.addListener(scheduleOrderTracking);
 chrome.runtime.onInstalled.addListener(scheduleOrderTracking);

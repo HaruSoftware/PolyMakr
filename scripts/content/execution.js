@@ -36,6 +36,12 @@ async function scan() {
   )) {
     await processRuleQueue();
   }
+  try {
+    await pollSimulationOrders(activeMarketKey);
+  } catch (error) {
+    simulationStatus = `Falha ao atualizar a simulação: ${error.message || error}`;
+    renderSimulation();
+  }
   scheduleNextScan();
 }
 
@@ -261,8 +267,35 @@ async function processQueuedRulesLocked(marketKey, states) {
     let orderWasSent = false;
     let actionCompleted = false;
     let trackingDetails = null;
+    let simulationOrder = null;
     try {
-      if (rule.mode === "auto_limit") {
+      if (rule.mode === "paper") {
+        simulationOrder = await createSimulationOrder(rule);
+        const status = simulationOrder.status === "filled"
+          ? "filled"
+          : simulationOrder.status === "partially_filled" ? "partially_filled" : "awaiting_fill";
+        const message = simulationOrder.status === "filled"
+          ? `Ordem simulada preenchida: ${simulationOrder.filledShares} shares.`
+          : simulationOrder.status === "partially_filled"
+            ? `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares.`
+            : "Ordem simulada aberta; aguardando liquidez compatível no livro.";
+        states[rule.id] = {
+          ...states[rule.id],
+          status,
+          message,
+          simulationOrderId: simulationOrder.id,
+          matchedShares: simulationOrder.filledShares,
+          updatedAt: Date.now()
+        };
+        await saveExecutionStates(marketKey, states);
+        await moveRuleToArchive(rule, status, message, {
+          simulationOrderId: simulationOrder.id,
+          matchedShares: simulationOrder.filledShares,
+          averageFillPrice: simulationOrder.averageFillPrice
+        });
+        sendRuleNotification(`${summary} ${message}`, rule.side === "buy" ? "Comprar" : "Vender");
+        continue;
+      } else if (rule.mode === "auto_limit") {
         trackingDetails = await executeLimitOrder(rule, quote);
         orderWasSent = true;
         states[rule.id] = {
@@ -297,16 +330,31 @@ async function processQueuedRulesLocked(marketKey, states) {
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
-      states[rule.id].status = orderWasSent ? "awaiting_fill" : actionCompleted ? "completed" : "failed";
-      states[rule.id].message = orderWasSent
-        ? `Trade enviado; erro ao salvar o acompanhamento: ${reason}. Verifique a carteira.`
-        : actionCompleted
-          ? `Ação executada; erro ao salvar o registro: ${reason}.`
-          : `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
+      const simulationOrderStatus = simulationOrder?.status === "filled"
+        ? "filled"
+        : simulationOrder?.status === "partially_filled" ? "partially_filled" : "awaiting_fill";
+      states[rule.id].status = simulationOrder
+        ? simulationOrderStatus
+        : orderWasSent ? "awaiting_fill" : actionCompleted ? "completed" : "failed";
+      if (simulationOrder) {
+        states[rule.id].message = `Ordem simulada criada, mas houve falha ao atualizar o registro: ${reason}. Confira a aba Simulação.`;
+      } else if (orderWasSent) {
+        states[rule.id].message = `Trade enviado; erro ao salvar o acompanhamento: ${reason}. Verifique a carteira.`;
+      } else if (actionCompleted) {
+        states[rule.id].message = `Ação executada; erro ao salvar o registro: ${reason}.`;
+      } else {
+        states[rule.id].message = `${reason} Confira o Polymarket antes de criar outra regra. A regra não será repetida automaticamente.`;
+      }
       states[rule.id].updatedAt = Date.now();
       try {
         await saveExecutionStates(marketKey, states);
-        if (!orderWasSent && !actionCompleted) {
+        if (simulationOrder) {
+          await moveRuleToArchive(rule, states[rule.id].status, states[rule.id].message, {
+            simulationOrderId: simulationOrder.id,
+            matchedShares: simulationOrder.filledShares,
+            averageFillPrice: simulationOrder.averageFillPrice
+          });
+        } else if (!orderWasSent && !actionCompleted) {
           await moveRuleToArchive(rule, "failed", states[rule.id].message, {
             triggeredPrice: states[rule.id].triggeredPrice
           });
@@ -477,7 +525,15 @@ async function resolveMarketTradingData(rule) {
   if (!market.conditionId || outcomeIndex < 0 || !assetIds[outcomeIndex]) {
     throw new Error("O mercado não forneceu identificadores válidos para acompanhar o resultado escolhido.");
   }
-  return { conditionId: market.conditionId, assetId: String(assetIds[outcomeIndex]) };
+  const isExplicitlyFalse = (value) => value === false || value === "false";
+  const isExplicitlyTrue = (value) => value === true || value === "true";
+  return {
+    conditionId: market.conditionId,
+    assetId: String(assetIds[outcomeIndex]),
+    isActive: !isExplicitlyFalse(market.active)
+      && !isExplicitlyTrue(market.closed)
+      && !isExplicitlyFalse(market.acceptingOrders)
+  };
 }
 
 function parseMarketArray(value) {

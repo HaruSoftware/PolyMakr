@@ -125,7 +125,9 @@ function renderArchive() {
     card.append(heading, action, market, message);
     if (Number(entry.matchedShares) > 0) {
       const fills = document.createElement("p");
-      fills.textContent = `Fill observado: ${entry.matchedShares} de ${rule.shares ?? rule.amount} shares`;
+      fills.textContent = entry.simulationOrderId
+        ? `Fill virtual: ${entry.matchedShares} de ${rule.shares ?? rule.amount} shares · preço médio ${(Number(entry.averageFillPrice) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}¢`
+        : `Fill observado: ${entry.matchedShares} de ${rule.shares ?? rule.amount} shares`;
       card.append(fills);
     }
     if (entry.trackingError) {
@@ -274,9 +276,10 @@ function renderRuleList(container, list, queuePolicy) {
     topActions.className = "rule-top-actions";
     const modeIcon = document.createElement("span");
     modeIcon.className = `action-icon ${rule.mode || "notify"}`;
-    modeIcon.textContent = rule.mode === "auto_limit" ? "⚡" : rule.mode === "confirm" ? "?" : "◉";
+    modeIcon.textContent = rule.mode === "auto_limit" ? "⚡" : rule.mode === "paper" ? "S" : rule.mode === "confirm" ? "?" : "◉";
     modeIcon.title = rule.mode === "auto_limit" ? "Automatizar ordem limite"
-      : rule.mode === "confirm" ? "Avisar e pedir confirmação" : "Somente notificar";
+      : rule.mode === "paper" ? "Simular ordem na carteira virtual"
+        : rule.mode === "confirm" ? "Avisar e pedir confirmação" : "Somente notificar";
     modeIcon.setAttribute("aria-label", modeIcon.title);
     topActions.append(modeIcon, createRuleMore(rule, {
       triggerPrice, orderPrice, size, state, stateLabels,
@@ -789,6 +792,7 @@ function modeLabel(mode, executionStatus) {
   if (executionStatus === "clicked") return "Clique em Trade enviado; confira o status";
   if (executionStatus === "failed") return "Falhou; confira antes de criar outra regra";
   if (mode === "auto_limit") return "Automatizar ordem limite (uma tentativa)";
+  if (mode === "paper") return "Ordem simulada na carteira virtual";
   if (mode === "confirm") return "Avisar (confirmação manual não conectada)";
   return "Somente notificar";
 }
