@@ -482,10 +482,12 @@ async function updateSimulationArchive(order) {
 }
 
 function renderSimulation() {
-  if (!simulationAccount || !simulationSummaryElement) return;
-  simulationSummaryElement.replaceChildren();
+  if (!simulationAccount || !simulationEquityElement) return;
+  simulationEquityElement.replaceChildren();
+  simulationMetricsElement.replaceChildren();
   simulationPositionsElement.replaceChildren();
   simulationOrdersElement.replaceChildren();
+  simulationFillsElement.replaceChildren();
 
   const pendingOrders = simulationOrders.filter((order) =>
     ["open", "partially_filled"].includes(order.status)
@@ -496,81 +498,250 @@ function renderSimulation() {
   const availableCash = simulationAccount.cash - reservedCash;
   const positions = Object.values(simulationAccount.positions);
   const allPositionsMarked = positions.every((position) => Number.isFinite(position.markPrice));
-  const unrealizedPnl = positions.reduce((total, position) =>
-    total + (Number.isFinite(position.markPrice)
-      ? (position.markPrice - position.averagePrice) * position.shares
-      : 0), 0);
+  const unrealizedPnl = allPositionsMarked
+    ? positions.reduce((total, position) =>
+      total + (position.markPrice - position.averagePrice) * position.shares, 0)
+    : null;
   const equity = allPositionsMarked
     ? simulationAccount.cash + positions.reduce((total, position) =>
       total + position.shares * position.markPrice, 0)
     : null;
+  const totalPnl = equity === null ? null : equity - simulationAccount.initialCash;
+  const totalReturn = totalPnl === null || simulationAccount.initialCash === 0
+    ? null
+    : totalPnl / simulationAccount.initialCash * 100;
 
-  for (const [label, value] of [
-    ["Saldo disponível", formatSimulationCurrency(availableCash)],
-    ["Patrimônio", equity === null ? "Cotação indisponível" : formatSimulationCurrency(equity)],
-    ["P&L realizado", formatSimulationCurrency(simulationAccount.realizedPnl)],
-    ["P&L não realizado", allPositionsMarked ? formatSimulationCurrency(unrealizedPnl) : "Cotação indisponível"]
+  const equityLabel = document.createElement("span");
+  equityLabel.className = "simulation-equity-label";
+  equityLabel.textContent = "Patrimônio total";
+  const equityValue = document.createElement("strong");
+  equityValue.className = "simulation-equity-value";
+  equityValue.textContent = equity === null ? "Cotação indisponível" : formatSimulationCurrency(equity);
+  simulationEquityElement.append(equityLabel, equityValue);
+  appendSimulationPill(
+    simulationEquityElement,
+    totalPnl === null ? "P&L total indisponível" : `${formatSignedCurrency(totalPnl)} (${formatSignedPercent(totalReturn)})`,
+    totalPnl
+  );
+  const initialBalance = document.createElement("span");
+  initialBalance.className = "simulation-equity-label";
+  initialBalance.textContent = `Saldo inicial ${formatSimulationCurrency(simulationAccount.initialCash)}`;
+  simulationEquityElement.append(initialBalance);
+
+  for (const metricData of [
+    { label: "Saldo disponível", value: formatSimulationCurrency(availableCash) },
+    { label: "P&L realizado", value: formatSimulationCurrency(simulationAccount.realizedPnl), pnl: simulationAccount.realizedPnl },
+    {
+      label: "P&L não realizado",
+      value: unrealizedPnl === null ? "Cotação indisponível" : formatSimulationCurrency(unrealizedPnl),
+      pnl: unrealizedPnl
+    }
   ]) {
     const metric = document.createElement("article");
     metric.className = "simulation-metric";
-    const title = document.createElement("span");
-    title.textContent = label;
-    const amount = document.createElement("strong");
-    amount.textContent = value;
-    metric.append(title, amount);
-    simulationSummaryElement.append(metric);
+    const label = document.createElement("span");
+    label.textContent = metricData.label;
+    const value = document.createElement("strong");
+    value.textContent = metricData.value;
+    if (metricData.pnl !== undefined && metricData.pnl !== null) {
+      value.classList.add(simulationTone(metricData.pnl));
+    }
+    metric.append(label, value);
+    simulationMetricsElement.append(metric);
   }
 
-  simulationStatusElement.textContent = `${simulationStatus} A simulação usa o livro público, não modela posição na fila e exibe P&L bruto sem taxas.`;
-  if (positions.length === 0) {
-    appendSimulationEmpty(simulationPositionsElement, "Nenhuma posição virtual aberta.");
-  }
-  for (const position of positions) {
-    const card = document.createElement("article");
-    card.className = "simulation-card";
-    const title = document.createElement("strong");
-    title.textContent = `${position.outcome} · ${position.marketTitle}`;
-    const details = document.createElement("p");
-    details.textContent = `${position.shares.toLocaleString("pt-BR")} shares · custo médio ${formatSimulationCurrency(position.averagePrice)} · bid ${Number.isFinite(position.markPrice) ? formatSimulationCurrency(position.markPrice) : "—"}`;
-    card.append(title, details);
-    simulationPositionsElement.append(card);
-  }
+  simulationStatusElement.textContent = `${simulationStatus} Os valores são estimativas brutas; sem taxas ou posição na fila.`;
+  setSimulationCount(".simulation-positions-count", positions.length);
+  setSimulationCount(".simulation-orders-count", simulationOrders.length);
+  setSimulationCount(".simulation-fills-count", simulationLedger.length);
+  renderSimulationPositions(positions);
+  renderSimulationOrders();
+  renderSimulationFills();
+}
 
-  const sortedOrders = [...simulationOrders].sort((left, right) => right.createdAt - left.createdAt);
-  if (sortedOrders.length === 0) {
-    appendSimulationEmpty(simulationOrdersElement, "As ordens simuladas aparecerão aqui.");
+function simulationTone(value) {
+  return value > 1e-8 ? "simulation-positive"
+    : value < -1e-8 ? "simulation-negative"
+      : "simulation-neutral";
+}
+
+function appendSimulationPill(container, text, value) {
+  const pill = document.createElement("span");
+  pill.className = `simulation-equity-change ${value === null ? "simulation-neutral-bg simulation-neutral" : value > 1e-8 ? "simulation-positive-bg simulation-positive" : value < -1e-8 ? "simulation-negative-bg simulation-negative" : "simulation-neutral-bg simulation-neutral"}`;
+  pill.textContent = text;
+  container.append(pill);
+}
+
+function setSimulationCount(selector, count) {
+  shadow.querySelector(selector).textContent = String(count);
+}
+
+function createSimulationTable(headers, emptyMessage) {
+  const table = document.createElement("table");
+  table.className = "simulation-table";
+  const head = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  for (const item of headers) {
+    const cell = document.createElement("th");
+    cell.textContent = item.label;
+    if (item.numeric) cell.className = "simulation-numeric";
+    headerRow.append(cell);
   }
-  const labels = {
+  head.append(headerRow);
+  const body = document.createElement("tbody");
+  table.append(head, body);
+  const wrapper = document.createElement("div");
+  wrapper.className = "simulation-table-wrap";
+  wrapper.append(table);
+  return { wrapper, body, columnCount: headers.length, headers };
+}
+
+function appendSimulationTableEmpty(table, message) {
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.className = "simulation-empty-cell";
+  cell.colSpan = table.columnCount;
+  cell.textContent = message;
+  row.append(cell);
+  table.body.append(row);
+}
+
+function appendSimulationCell(row, value, options = {}) {
+  const cell = document.createElement("td");
+  if (options.className) cell.className = options.className;
+  if (options.title) cell.title = options.title;
+  if (value instanceof Node) cell.append(value);
+  else cell.textContent = String(value);
+  row.append(cell);
+  return cell;
+}
+
+function createSimulationOutcome(outcome) {
+  const badge = document.createElement("span");
+  badge.className = `simulation-outcome ${outcome === "Down" ? "down" : "up"}`;
+  badge.textContent = outcome;
+  return badge;
+}
+
+function createSimulationStatus(status) {
+  const badge = document.createElement("span");
+  badge.className = `simulation-state ${status}`;
+  badge.textContent = {
     open: "Aberta",
     partially_filled: "Parcial",
     filled: "Preenchida",
     cancelled: "Cancelada"
-  };
+  }[status] || status;
+  return badge;
+}
+
+function renderSimulationPositions(positions) {
+  const table = createSimulationTable([
+    { label: "Mercado" },
+    { label: "Resultado" },
+    { label: "Shares", numeric: true },
+    { label: "Preço médio", numeric: true },
+    { label: "Bid", numeric: true },
+    { label: "Valor", numeric: true },
+    { label: "P&L / retorno", numeric: true }
+  ], "Nenhuma posição aberta.");
+  if (positions.length === 0) appendSimulationTableEmpty(table, "Nenhuma posição aberta.");
+  for (const position of positions) {
+    const row = document.createElement("tr");
+    const markPrice = Number.isFinite(position.markPrice) ? position.markPrice : null;
+    const markValue = markPrice === null ? null : position.shares * markPrice;
+    const costBasis = position.shares * position.averagePrice;
+    const pnl = markValue === null ? null : markValue - costBasis;
+    const returnPercent = pnl === null || costBasis === 0 ? null : pnl / costBasis * 100;
+    appendSimulationCell(row, position.marketTitle, { title: position.marketTitle });
+    appendSimulationCell(row, createSimulationOutcome(position.outcome));
+    appendSimulationCell(row, Number(position.shares).toLocaleString("pt-BR", { maximumFractionDigits: 2 }), { className: "simulation-numeric" });
+    appendSimulationCell(row, formatSimulationCents(position.averagePrice), { className: "simulation-numeric" });
+    appendSimulationCell(row, markPrice === null ? "—" : formatSimulationCents(markPrice), { className: "simulation-numeric" });
+    appendSimulationCell(row, markValue === null ? "—" : formatSimulationCurrency(markValue), { className: "simulation-numeric" });
+    const pnlCell = appendSimulationCell(row, pnl === null ? "Cotação indisponível" : `${formatSignedCurrency(pnl)} · ${formatSignedPercent(returnPercent)}`, {
+      className: `simulation-numeric ${pnl === null ? "simulation-neutral" : simulationTone(pnl)}`
+    });
+    pnlCell.title = pnl === null ? "Abra o mercado correspondente para atualizar a cotação." : "P&L não realizado, marcado pelo melhor bid.";
+    table.body.append(row);
+  }
+  simulationPositionsElement.replaceChildren(table.wrapper);
+}
+
+function renderSimulationOrders() {
+  const sortedOrders = [...simulationOrders].sort((left, right) => right.createdAt - left.createdAt);
+  const table = createSimulationTable([
+    { label: "Mercado" },
+    { label: "Lado" },
+    { label: "Resultado" },
+    { label: "Status" },
+    { label: "Preenchido", numeric: true },
+    { label: "Preço limite", numeric: true },
+    { label: "Preço médio", numeric: true },
+    { label: "Atualizada" },
+    { label: "" }
+  ], "Nenhuma ordem simulada.");
+  if (sortedOrders.length === 0) appendSimulationTableEmpty(table, "Nenhuma ordem simulada.");
   for (const order of sortedOrders) {
-    const card = document.createElement("article");
-    card.className = "simulation-card";
-    const title = document.createElement("strong");
-    title.textContent = `${order.side === "buy" ? "Compra" : "Venda"} ${order.outcome} · ${labels[order.status] || order.status}`;
-    const details = document.createElement("p");
-    details.textContent = `${order.marketTitle} · ${order.filledShares}/${order.requestedShares} shares · limite ${order.limitCents}¢ · médio ${order.filledShares ? formatSimulationCurrency(order.averageFillPrice) : "—"}`;
-    card.append(title, details);
+    const row = document.createElement("tr");
+    appendSimulationCell(row, order.marketTitle, { title: order.marketTitle });
+    appendSimulationCell(row, order.side === "buy" ? "Comprar" : "Vender", {
+      className: `simulation-side ${order.side}`
+    });
+    appendSimulationCell(row, createSimulationOutcome(order.outcome));
+    appendSimulationCell(row, createSimulationStatus(order.status));
+    appendSimulationCell(row, `${Number(order.filledShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} / ${Number(order.requestedShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`, {
+      className: "simulation-numeric"
+    });
+    appendSimulationCell(row, formatSimulationCents(order.limitCents / 100), { className: "simulation-numeric" });
+    appendSimulationCell(row, order.filledShares ? formatSimulationCents(order.averageFillPrice) : "—", { className: "simulation-numeric" });
+    appendSimulationCell(row, new Date(order.updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+    const actions = document.createElement("span");
+    actions.className = "simulation-actions";
     if (["open", "partially_filled"].includes(order.status)) {
       const cancel = document.createElement("button");
       cancel.type = "button";
       cancel.className = "simulation-cancel";
-      cancel.textContent = "Cancelar ordem";
+      cancel.textContent = "Cancelar";
       cancel.addEventListener("click", () => cancelSimulationOrder(order.id));
-      card.append(cancel);
+      actions.append(cancel);
     }
-    simulationOrdersElement.append(card);
+    appendSimulationCell(row, actions);
+    table.body.append(row);
   }
+  simulationOrdersElement.replaceChildren(table.wrapper);
 }
 
-function appendSimulationEmpty(container, message) {
-  const empty = document.createElement("p");
-  empty.className = "empty";
-  empty.textContent = message;
-  container.append(empty);
+function renderSimulationFills() {
+  const recentFills = [...simulationLedger].sort((left, right) => right.createdAt - left.createdAt).slice(0, 25);
+  const table = createSimulationTable([
+    { label: "Horário" },
+    { label: "Mercado" },
+    { label: "Lado" },
+    { label: "Resultado" },
+    { label: "Shares", numeric: true },
+    { label: "Preço", numeric: true },
+    { label: "Total", numeric: true },
+    { label: "P&L realizado", numeric: true }
+  ], "Nenhum preenchimento ainda.");
+  if (recentFills.length === 0) appendSimulationTableEmpty(table, "Nenhum preenchimento ainda.");
+  for (const fill of recentFills) {
+    const row = document.createElement("tr");
+    appendSimulationCell(row, new Date(fill.createdAt).toLocaleString("pt-BR"));
+    appendSimulationCell(row, fill.marketTitle, { title: fill.marketTitle });
+    appendSimulationCell(row, fill.side === "buy" ? "Comprar" : "Vender", {
+      className: `simulation-side ${fill.side}`
+    });
+    appendSimulationCell(row, createSimulationOutcome(fill.outcome));
+    appendSimulationCell(row, Number(fill.shares).toLocaleString("pt-BR", { maximumFractionDigits: 2 }), { className: "simulation-numeric" });
+    appendSimulationCell(row, formatSimulationCents(fill.price), { className: "simulation-numeric" });
+    appendSimulationCell(row, formatSimulationCurrency(fill.notional), { className: "simulation-numeric" });
+    appendSimulationCell(row, formatSignedCurrency(Number(fill.realizedPnl) || 0), {
+      className: `simulation-numeric ${simulationTone(Number(fill.realizedPnl) || 0)}`
+    });
+    table.body.append(row);
+  }
+  simulationFillsElement.replaceChildren(table.wrapper);
 }
 
 function formatSimulationCurrency(value) {
@@ -578,4 +749,21 @@ function formatSimulationCurrency(value) {
     style: "currency",
     currency: "USD"
   }).format(value);
+}
+
+function formatSignedCurrency(value) {
+  const amount = formatSimulationCurrency(Math.abs(value));
+  return value > 1e-8 ? `+${amount}` : value < -1e-8 ? `-${amount}` : amount;
+}
+
+function formatSignedPercent(value) {
+  const amount = Math.abs(value).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  return `${value > 1e-8 ? "+" : value < -1e-8 ? "-" : ""}${amount}%`;
+}
+
+function formatSimulationCents(value) {
+  return `${(value * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}¢`;
 }

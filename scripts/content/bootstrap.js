@@ -149,18 +149,51 @@ shadow.innerHTML = `
     .wallet-settings { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; margin-top: 12px; }
     .wallet-settings button { min-height: 36px; padding: 7px 10px; border: 0; border-radius: 7px; background: #087c3b; color: #fff; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
     .wallet-help { grid-column: 1 / -1; margin: -4px 0 0; color: #78827b; font-size: 10px; }
-    .simulation-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-    .simulation-metric { min-width: 0; padding: 10px; border-radius: 9px; background: #f5f7f5; }
-    .simulation-metric span { display: block; color: #78827b; font-size: 10px; }
-    .simulation-metric strong { display: block; margin-top: 3px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-    .simulation-note { margin: 10px 0 16px; color: #78827b; font-size: 10px; }
-    .simulation-section { display: grid; gap: 7px; margin-top: 16px; }
-    .simulation-section h3 { margin: 0; font-size: 12px; }
-    .simulation-list { display: grid; gap: 7px; }
-    .simulation-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 9px 10px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; }
-    .simulation-card strong { min-width: 0; overflow-wrap: anywhere; font-size: 11px; }
-    .simulation-card p { flex: 1 1 260px; margin: 0; color: #657168; font-size: 10px; }
-    .simulation-cancel { padding: 5px 8px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; }
+    .simulation-overview { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr); gap: 10px; }
+    .simulation-equity, .simulation-metric { min-width: 0; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
+    .simulation-equity-label, .simulation-metric span { display: block; color: #78827b; font-size: 10px; }
+    .simulation-equity-value { display: block; margin-top: 4px; font-size: 23px; letter-spacing: -.5px; }
+    .simulation-equity-change { display: inline-flex; margin-top: 8px; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 750; }
+    .simulation-positive { color: #087c3b !important; }
+    .simulation-negative { color: #b42318 !important; }
+    .simulation-neutral { color: #59645d !important; }
+    .simulation-positive-bg { background: #e4f5ea; }
+    .simulation-negative-bg { background: #fde9e8; }
+    .simulation-neutral-bg { background: #eef1ef; }
+    .simulation-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .simulation-metric { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 11px; }
+    .simulation-metric strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .simulation-note { margin: 9px 0 16px; color: #78827b; font-size: 10px; }
+    .simulation-status { margin: 8px 0 0; font-size: 10px; }
+    .simulation-section { display: grid; gap: 8px; margin-top: 18px; }
+    .simulation-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .simulation-section h3 { margin: 0; font-size: 13px; }
+    .simulation-section-count { padding: 2px 7px; border-radius: 999px; background: #f1f3f1; color: #59645d; font-size: 10px; font-weight: 700; }
+    .simulation-table-wrap { overflow-x: auto; border: 1px solid #e6ebe7; border-radius: 10px; background: #fff; }
+    .simulation-table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; }
+    .simulation-table th { padding: 9px 10px; background: #f8faf8; color: #78827b; font-size: 9px; font-weight: 650; white-space: nowrap; }
+    .simulation-table td { padding: 10px; border-top: 1px solid #edf0ed; color: #435047; white-space: nowrap; }
+    .simulation-table td:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    .simulation-table .simulation-numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    .simulation-outcome { display: inline-flex; align-items: center; gap: 5px; font-weight: 750; }
+    .simulation-outcome::before { width: 7px; height: 7px; border-radius: 50%; background: #087c3b; content: ""; }
+    .simulation-outcome.down::before { background: #c4312b; }
+    .simulation-side { font-weight: 750; }
+    .simulation-side.buy { color: #087c3b; }
+    .simulation-side.sell { color: #a33b2e; }
+    .simulation-state { display: inline-flex; padding: 3px 7px; border-radius: 999px; background: #eef1ef; color: #59645d; font-size: 9px; font-weight: 700; }
+    .simulation-state.open, .simulation-state.partially_filled { background: #fff3d8; color: #8a5a00; }
+    .simulation-state.filled { background: #e4f5ea; color: #087c3b; }
+    .simulation-state.cancelled { background: #f1f3f1; color: #657168; }
+    .simulation-actions { display: inline-flex; align-items: center; gap: 8px; }
+    .simulation-cancel { padding: 4px 7px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
+    .simulation-empty-cell { padding: 20px !important; color: #78827b !important; text-align: center; white-space: normal !important; }
+    @media (max-width: 700px) {
+      .simulation-overview { grid-template-columns: 1fr; }
+      .simulation-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .simulation-metric { padding: 9px; }
+      .simulation-table { min-width: 650px; }
+    }
     .archive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .archive-select-all { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; color: #59645d; font-size: 11px; }
     .archive-select-all input, .archive-card-select input { width: auto; margin: 0; }
@@ -264,16 +297,23 @@ shadow.innerHTML = `
     </div>
     <div class="view" data-panel="simulation" role="tabpanel" hidden>
       <div class="section-heading"><h2>Simulação ao vivo</h2><span class="count-chip">Carteira virtual</span></div>
-      <p class="simulation-note">Saldo inicial virtual: US$ 1.000. Atualiza o livro a cada 2 segundos com a página do mercado aberta. As ordens não são enviadas à Polymarket; não há taxas nem liquidação de mercados resolvidos nesta versão.</p>
-      <div class="simulation-summary"></div>
+      <p class="simulation-note">Carteira virtual · ordens sem envio real · livro atualizado enquanto o mercado estiver aberto.</p>
+      <div class="simulation-overview">
+        <div class="simulation-equity"></div>
+        <div class="simulation-metrics"></div>
+      </div>
       <p class="simulation-status empty" role="status"></p>
       <section class="simulation-section">
-        <h3>Posições</h3>
-        <div class="simulation-positions simulation-list"></div>
+        <div class="simulation-section-heading"><h3>Posições</h3><span class="simulation-positions-count simulation-section-count">0</span></div>
+        <div class="simulation-positions"></div>
       </section>
       <section class="simulation-section">
-        <h3>Ordens</h3>
-        <div class="simulation-orders simulation-list"></div>
+        <div class="simulation-section-heading"><h3>Ordens</h3><span class="simulation-orders-count simulation-section-count">0</span></div>
+        <div class="simulation-orders"></div>
+      </section>
+      <section class="simulation-section">
+        <div class="simulation-section-heading"><h3>Atividade recente</h3><span class="simulation-fills-count simulation-section-count">0</span></div>
+        <div class="simulation-fills"></div>
       </section>
     </div>
   </section>
@@ -309,10 +349,12 @@ const queueRulesElement = shadow.querySelector(".queue-rules");
 const immediateRulesElement = shadow.querySelector(".immediate-rules");
 const favoritesElement = shadow.querySelector(".favorites");
 const archiveElement = shadow.querySelector(".archive-list");
-const simulationSummaryElement = shadow.querySelector(".simulation-summary");
+const simulationEquityElement = shadow.querySelector(".simulation-equity");
+const simulationMetricsElement = shadow.querySelector(".simulation-metrics");
 const simulationStatusElement = shadow.querySelector(".simulation-status");
 const simulationPositionsElement = shadow.querySelector(".simulation-positions");
 const simulationOrdersElement = shadow.querySelector(".simulation-orders");
+const simulationFillsElement = shadow.querySelector(".simulation-fills");
 const archiveSelectAllInput = shadow.querySelector(".archive-select-all-input");
 const archiveDeleteSelectedButton = shadow.querySelector(".archive-delete-selected");
 const archiveClearAllButton = shadow.querySelector(".archive-clear-all");
