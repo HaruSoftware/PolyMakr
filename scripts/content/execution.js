@@ -506,11 +506,15 @@ async function resolveMarketTradingData(rule) {
     throw new Error("Não foi possível identificar o slug do mercado para acompanhar os fills.");
   }
   const route = rule.marketRoute === "market" ? "markets" : "events";
-  const response = await fetch(`https://gamma-api.polymarket.com/${route}/slug/${encodeURIComponent(rule.marketSlug)}`);
-  if (!response.ok) {
-    throw new Error(`O Polymarket não retornou os dados do mercado (${response.status}).`);
+  const response = await chrome.runtime.sendMessage({
+    type: "POLYMAKR_MARKET_TRADING_DATA",
+    route,
+    slug: rule.marketSlug
+  });
+  if (!response || response.error) {
+    throw new Error(response?.error || "Não foi possível consultar os dados do mercado no Polymarket.");
   }
-  const result = await response.json();
+  const result = response.result;
   const markets = rule.marketRoute === "event"
     ? (Array.isArray(result) ? result.flatMap((event) => event.markets || []) : result.markets || [])
     : [result];
@@ -556,15 +560,15 @@ function normalizeMarketLabel(value) {
 }
 
 async function loadBaselineTrades(rule, marketData) {
-  const url = new URL("https://data-api.polymarket.com/v2/trades");
-  url.searchParams.set("user", rule.walletAddress.toLowerCase());
-  url.searchParams.set("condition", marketData.conditionId);
-  url.searchParams.set("limit", "100");
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Não foi possível consultar os trades públicos da carteira (${response.status}).`);
+  const response = await chrome.runtime.sendMessage({
+    type: "POLYMAKR_BASELINE_TRADES",
+    walletAddress: rule.walletAddress,
+    conditionId: marketData.conditionId
+  });
+  if (!response || response.error) {
+    throw new Error(response?.error || "Não foi possível consultar os trades públicos da carteira.");
   }
-  const result = await response.json();
+  const result = response.result;
   if (!Array.isArray(result.data)) {
     throw new Error("A resposta de trades públicos do Polymarket está em formato inesperado.");
   }

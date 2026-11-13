@@ -16,6 +16,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "POLYMAKR_MARKET_TRADING_DATA") {
+    fetchMarketTradingData(message.route, message.slug)
+      .then((result) => sendResponse({ result }))
+      .catch((error) => sendResponse({ error: error.message || String(error) }));
+    return true;
+  }
+
+  if (message?.type === "POLYMAKR_BASELINE_TRADES") {
+    fetchBaselineTrades(message.walletAddress, message.conditionId)
+      .then((result) => sendResponse({ result }))
+      .catch((error) => sendResponse({ error: error.message || String(error) }));
+    return true;
+  }
+
   if (message?.type !== "POLYMAKR_NOTIFICATION") {
     return;
   }
@@ -40,15 +54,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function fetchSimulationOrderBook(tokenId) {
   const url = new URL("https://clob.polymarket.com/book");
   url.searchParams.set("token_id", tokenId);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Consulta do livro de ofertas falhou (${response.status}).`);
-  }
-  const book = await response.json();
+  const book = await fetchPolymarketJson(url, "livro de ofertas");
   if (!Array.isArray(book.asks) || !Array.isArray(book.bids)) {
     throw new Error("Resposta do livro de ofertas em formato inesperado.");
   }
   return { asks: book.asks, bids: book.bids, hash: book.hash };
+}
+
+async function fetchMarketTradingData(route, slug) {
+  if (!["markets", "events"].includes(route) || typeof slug !== "string" || !slug) {
+    throw new Error("Os dados do mercado solicitados são inválidos.");
+  }
+  const url = `https://gamma-api.polymarket.com/${route}/slug/${encodeURIComponent(slug)}`;
+  return fetchPolymarketJson(url, "dados do mercado");
+}
+
+async function fetchBaselineTrades(walletAddress, conditionId) {
+  if (typeof walletAddress !== "string" || !walletAddress
+    || typeof conditionId !== "string" || !conditionId) {
+    throw new Error("Os dados para consultar os trades públicos são inválidos.");
+  }
+  const url = new URL("https://data-api.polymarket.com/v2/trades");
+  url.searchParams.set("user", walletAddress.toLowerCase());
+  url.searchParams.set("condition", conditionId);
+  url.searchParams.set("limit", "100");
+  return fetchPolymarketJson(url, "trades públicos da carteira");
+}
+
+async function fetchPolymarketJson(url, resource) {
+  let response;
+  try {
+    response = await fetch(url);
+  } catch {
+    throw new Error(`Não foi possível conectar à API pública do Polymarket para consultar ${resource}. Verifique sua conexão e tente novamente.`);
+  }
+  if (!response.ok) {
+    throw new Error(`A consulta de ${resource} falhou (${response.status}).`);
+  }
+  return response.json();
 }
 
 chrome.runtime.onStartup.addListener(scheduleOrderTracking);
