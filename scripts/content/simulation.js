@@ -35,7 +35,6 @@ async function initializeSimulation() {
     }
   });
   await refreshSimulation();
-  simulationInitialCashInput.value = String(simulationAccount.initialCash);
 }
 
 function createSimulationAccount(initialCash) {
@@ -221,18 +220,30 @@ async function createSimulationOrder(rule) {
   return result.order;
 }
 
+function openSimulationResetDialog() {
+  simulationResetInitialCashInput.value = "";
+  simulationResetBackdrop.hidden = false;
+  simulationResetInitialCashInput.focus();
+}
+
+function closeSimulationResetDialog() {
+  if (simulationResetConfirmButton.disabled) return;
+  simulationResetBackdrop.hidden = true;
+  simulationResetInitialCashInput.value = "";
+  simulationResetWalletButton.focus();
+}
+
 async function resetSimulationWallet(event) {
   event.preventDefault();
-  const initialCash = Number(simulationInitialCashInput.value);
-  if (!simulationInitialCashInput.checkValidity() || !Number.isFinite(initialCash) || initialCash <= 0) {
-    simulationInitialCashInput.reportValidity();
+  const initialCash = Number(simulationResetInitialCashInput.value);
+  if (!simulationResetInitialCashInput.checkValidity()
+    || !Number.isFinite(initialCash) || initialCash <= 0) {
+    simulationResetInitialCashInput.reportValidity();
     return;
   }
-  if (!window.confirm(
-    `Criar uma nova carteira com ${formatSimulationCurrency(initialCash)}? ` +
-    "Isso apagará o saldo, posições, ordens e fills da simulação atual. Regras e registros serão mantidos."
-  )) return;
 
+  simulationResetConfirmButton.disabled = true;
+  simulationResetCancelButton.disabled = true;
   simulationResetWalletButton.disabled = true;
   try {
     await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
@@ -248,9 +259,15 @@ async function resetSimulationWallet(event) {
     });
     simulationStatus = `Nova carteira criada com saldo inicial de ${formatSimulationCurrency(initialCash)}.`;
     renderSimulation();
+    simulationResetWalletButton.disabled = false;
+    simulationResetConfirmButton.disabled = false;
+    simulationResetCancelButton.disabled = false;
+    closeSimulationResetDialog();
   } catch (error) {
     showToast("Não foi possível reiniciar a carteira", error.message || String(error), "error");
   } finally {
+    simulationResetConfirmButton.disabled = false;
+    simulationResetCancelButton.disabled = false;
     simulationResetWalletButton.disabled = false;
   }
 }

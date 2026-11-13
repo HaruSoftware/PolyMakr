@@ -31,7 +31,7 @@ shadow.innerHTML = `
     .top strong { font-size: 15px; }
     .top small { display: block; color: #78827b; font-size: 11px; }
     .close { border: 0; background: transparent; color: #59645d; cursor: pointer; font-size: 20px; }
-    .tabs { display: grid; flex: 0 0 auto; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
+    .tabs { display: grid; flex: 0 0 auto; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
     .tab { padding: 8px; border: 0; border-radius: 8px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
     .tab[aria-selected="true"] { background: #e8f4ec; color: #087c3b; }
     .view { display: none; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px;
@@ -150,6 +150,13 @@ shadow.innerHTML = `
     .favorite-dialog-actions button { padding: 9px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
     .favorite-dialog-cancel { background: #f1f3f1; color: #435047; }
     .favorite-dialog-save { background: #e58b16; color: #fff; }
+    .settings-section { display: grid; gap: 10px; max-width: 640px; margin: 0 0 16px; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
+    .settings-section h3 { margin: 0; font-size: 13px; }
+    .settings-section p { margin: 0; color: #657168; font-size: 11px; }
+    .settings-section .wallet-settings { margin-top: 0; }
+    .simulation-reset-wallet { justify-self: start; min-height: 34px; padding: 7px 10px; border: 1px solid #f0d7d4; border-radius: 7px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .simulation-reset-wallet:hover { border-color: #d7aaa5; background: #fff7f6; }
+    .simulation-reset-wallet:disabled { cursor: wait; opacity: .6; }
     .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .count-chip { padding: 4px 8px; border-radius: 999px; background: #f1f3f1; color: #59645d; font-size: 10px; font-weight: 700; }
     .archive-list { display: grid; gap: 8px; margin-top: 12px; }
@@ -162,10 +169,6 @@ shadow.innerHTML = `
     .wallet-help { grid-column: 1 / -1; margin: -4px 0 0; color: #78827b; font-size: 10px; }
     .simulation-overview { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr); gap: 10px; }
     .simulation-equity, .simulation-metric { min-width: 0; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
-    .simulation-wallet-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; margin: 0 0 14px; padding: 12px; border: 1px solid #e6ebe7; border-radius: 10px; background: #f8faf8; }
-    .simulation-wallet-form button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 7px; background: #a33b2e; color: #fff; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
-    .simulation-wallet-form button:disabled { cursor: wait; opacity: .6; }
-    .simulation-wallet-help { grid-column: 1 / -1; margin: 0; color: #78827b; font-size: 10px; }
     .simulation-equity-label, .simulation-metric span { display: block; color: #78827b; font-size: 10px; }
     .simulation-equity-value { display: block; margin-top: 4px; font-size: 23px; letter-spacing: -.5px; }
     .simulation-equity-change { display: inline-flex; margin-top: 8px; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 750; }
@@ -225,18 +228,21 @@ shadow.innerHTML = `
     .archive-card-heading { display: flex; align-items: flex-start; gap: 7px; }
     .archive-card-select { display: flex; flex: 0 0 auto; align-items: center; padding-top: 2px; }
     .archive-card-heading .archive-status { flex: 1 1 auto; }
-    .archive-delete-backdrop { position: fixed; z-index: 2147483650; inset: 0; display: grid; place-items: center; padding: 16px; background: #1118; }
-    .archive-delete-backdrop[hidden] { display: none; }
-    .archive-delete-dialog { display: grid; width: min(360px, 100%); gap: 12px; padding: 20px; border: 1px solid #e1e7e2; border-radius: 14px; background: #fff; box-shadow: 0 16px 48px #0003; }
-    .archive-delete-dialog h2 { margin: 0; font-size: 15px; }
-    .archive-delete-dialog p { margin: 0; color: #657168; font-size: 11px; }
+    .archive-delete-backdrop, .simulation-reset-backdrop { position: fixed; z-index: 2147483650; inset: 0; display: grid; place-items: center; padding: 16px; background: #1118; }
+    .archive-delete-backdrop[hidden], .simulation-reset-backdrop[hidden] { display: none; }
+    .archive-delete-dialog, .simulation-reset-dialog { display: grid; width: min(360px, 100%); gap: 12px; padding: 20px; border: 1px solid #e1e7e2; border-radius: 14px; background: #fff; box-shadow: 0 16px 48px #0003; }
+    .archive-delete-dialog h2, .simulation-reset-dialog h2 { margin: 0; font-size: 15px; }
+    .archive-delete-dialog p, .simulation-reset-dialog p { margin: 0; color: #657168; font-size: 11px; }
     .archive-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .archive-delete-actions button { padding: 9px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .archive-delete-actions button:disabled { cursor: wait; opacity: .6; }
     .archive-delete-cancel { background: #f1f3f1; color: #435047; }
     .archive-delete-confirm { background: #a33b2e; color: #fff; }
     @media (max-width: 700px) {
       .board { grid-template-columns: repeat(3, minmax(220px, 1fr)); overflow-x: auto; padding-bottom: 5px; }
       .view[data-panel="rules"] { padding: 12px; }
+      .tabs { gap: 3px; padding: 8px 10px; }
+      .tab { padding: 7px 2px; font-size: 10px; overflow-wrap: anywhere; }
     }
   </style>
   <div class="backdrop"></div>
@@ -250,6 +256,7 @@ shadow.innerHTML = `
       <button class="tab" type="button" role="tab" data-view="rules" aria-selected="false">Regras</button>
       <button class="tab" type="button" role="tab" data-view="archive" aria-selected="false">Registro</button>
       <button class="tab" type="button" role="tab" data-view="simulation" aria-selected="false">Simulação</button>
+      <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">Configurações</button>
     </nav>
     <div class="view active" data-panel="create" role="tabpanel">
       <h2 class="form-heading">Criar regra</h2>
@@ -310,11 +317,6 @@ shadow.innerHTML = `
     </div>
     <div class="view" data-panel="archive" role="tabpanel" hidden>
       <div class="section-heading"><h2>Registro de regras</h2><span class="count-chip archive-count">0</span></div>
-      <form class="wallet-settings">
-        <label>Carteira pública (proxy wallet)<input name="walletAddress" type="text" maxlength="42" placeholder="0x..." autocomplete="off"></label>
-        <button type="submit">Salvar carteira</button>
-        <p class="wallet-help">Use o endereço público/proxy exibido na conta do Polymarket. Não informe chave privada nem credenciais.</p>
-      </form>
       <div class="archive-actions">
         <label class="archive-select-all"><input class="archive-select-all-input" type="checkbox"> Selecionar todos</label>
         <button class="archive-delete-selected danger" type="button" disabled>Excluir selecionados (0)</button>
@@ -325,11 +327,6 @@ shadow.innerHTML = `
     <div class="view" data-panel="simulation" role="tabpanel" hidden>
       <div class="section-heading"><h2>Simulação ao vivo</h2><span class="count-chip">Carteira virtual</span></div>
       <p class="simulation-note">Carteira virtual · ordens sem envio real · livro atualizado enquanto o mercado estiver aberto.</p>
-      <form class="simulation-wallet-form">
-        <label>Saldo inicial da nova carteira (US$)<input class="simulation-initial-cash" type="number" min="0.01" max="1000000000" step="0.01" value="1000" required></label>
-        <button class="simulation-reset-wallet" type="submit">Resetar e criar carteira</button>
-        <p class="simulation-wallet-help">A ação apaga posições, ordens e fills da simulação atual. Regras e registros permanecem.</p>
-      </form>
       <div class="simulation-overview">
         <div class="simulation-equity"></div>
         <div class="simulation-metrics"></div>
@@ -356,6 +353,23 @@ shadow.innerHTML = `
         <div class="simulation-fills"></div>
       </section>
     </div>
+    <div class="view" data-panel="settings" role="tabpanel" hidden>
+      <h2>Configurações</h2>
+      <section class="settings-section">
+        <h3>Acompanhamento de carteira</h3>
+        <p>Informe o endereço público/proxy exibido na conta Polymarket. Nunca informe chave privada nem credenciais.</p>
+        <form class="wallet-settings">
+          <label>Carteira pública (proxy wallet)<input name="walletAddress" type="text" maxlength="42" placeholder="0x..." autocomplete="off"></label>
+          <button type="submit">Salvar carteira</button>
+          <p class="wallet-help">Usado para acompanhar fills públicos das ordens automatizadas.</p>
+        </form>
+      </section>
+      <section class="settings-section">
+        <h3>Carteira de ativos</h3>
+        <p>Crie uma nova carteira virtual com outro saldo inicial. O reset apaga o saldo, as posições, as ordens e os fills atuais; regras e registros são mantidos.</p>
+        <button class="simulation-reset-wallet" type="button">Resetar carteira de ativos</button>
+      </section>
+    </div>
   </section>
   <div class="toast-stack" aria-live="polite" aria-relevant="additions"></div>
   <div class="favorite-dialog-backdrop" hidden>
@@ -379,6 +393,17 @@ shadow.innerHTML = `
       </div>
     </section>
   </div>
+  <div class="simulation-reset-backdrop" hidden>
+    <form class="simulation-reset-dialog" role="dialog" aria-modal="true" aria-labelledby="simulation-reset-title">
+      <h2 id="simulation-reset-title">Criar nova carteira de ativos?</h2>
+      <p>O saldo, as posições, as ordens e os fills atuais serão apagados. Regras e registros serão mantidos.</p>
+      <label>Novo saldo inicial (US$)<input class="simulation-reset-initial-cash" type="number" min="0.01" max="1000000000" step="0.01" placeholder="Informe o novo saldo" required></label>
+      <div class="archive-delete-actions">
+        <button class="archive-delete-cancel simulation-reset-cancel" type="button">Cancelar</button>
+        <button class="archive-delete-confirm" type="submit">Criar nova carteira</button>
+      </div>
+    </form>
+  </div>
 `;
 
 const panel = shadow.querySelector(".panel");
@@ -397,9 +422,12 @@ const simulationOrdersElement = shadow.querySelector(".simulation-orders");
 const simulationOrderHistoryElement = shadow.querySelector(".simulation-order-history");
 const simulationFillsElement = shadow.querySelector(".simulation-fills");
 const simulationClearHistoryButton = shadow.querySelector(".simulation-clear-history");
-const simulationWalletForm = shadow.querySelector(".simulation-wallet-form");
-const simulationInitialCashInput = shadow.querySelector(".simulation-initial-cash");
 const simulationResetWalletButton = shadow.querySelector(".simulation-reset-wallet");
+const simulationResetBackdrop = shadow.querySelector(".simulation-reset-backdrop");
+const simulationResetForm = shadow.querySelector(".simulation-reset-dialog");
+const simulationResetInitialCashInput = shadow.querySelector(".simulation-reset-initial-cash");
+const simulationResetConfirmButton = simulationResetForm.querySelector('[type="submit"]');
+const simulationResetCancelButton = simulationResetForm.querySelector(".simulation-reset-cancel");
 const archiveSelectAllInput = shadow.querySelector(".archive-select-all-input");
 const archiveDeleteSelectedButton = shadow.querySelector(".archive-delete-selected");
 const archiveClearAllButton = shadow.querySelector(".archive-clear-all");
@@ -448,7 +476,12 @@ let mutationScanScheduled = false;
 
 shadow.querySelector(".close").addEventListener("click", togglePanel);
 simulationClearHistoryButton.addEventListener("click", clearSimulationOrderHistory);
-simulationWalletForm.addEventListener("submit", resetSimulationWallet);
+simulationResetWalletButton.addEventListener("click", openSimulationResetDialog);
+simulationResetForm.addEventListener("submit", resetSimulationWallet);
+simulationResetCancelButton.addEventListener("click", closeSimulationResetDialog);
+simulationResetBackdrop.addEventListener("click", (event) => {
+  if (event.target === simulationResetBackdrop) closeSimulationResetDialog();
+});
 backdrop.addEventListener("click", togglePanel);
 shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));
@@ -472,7 +505,9 @@ favoriteDialogBackdrop.addEventListener("click", (event) => {
 });
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && panel.classList.contains("open")) {
-    if (!archiveDeleteBackdrop.hidden) {
+    if (!simulationResetBackdrop.hidden) {
+      closeSimulationResetDialog();
+    } else if (!archiveDeleteBackdrop.hidden) {
       closeArchiveDeleteDialog();
     } else if (!favoriteDialogBackdrop.hidden) {
       closeFavoriteDialog();
