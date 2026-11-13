@@ -183,6 +183,14 @@ shadow.innerHTML = `
     .simulation-metric strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
     .simulation-note { margin: 9px 0 16px; color: #78827b; font-size: 10px; }
     .simulation-status { margin: 8px 0 0; font-size: 10px; }
+    .simulation-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 16px; padding: 4px; border: 1px solid #e3e9e4; border-radius: 10px; background: #f4f7f4; }
+    .simulation-tab { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 6px; padding: 9px 7px; border: 0; border-radius: 7px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .simulation-tab[aria-selected="true"] { background: #fff; color: #087c3b; box-shadow: 0 1px 3px #17211b12; }
+    .simulation-tab-count { flex: 0 0 auto; min-width: 18px; padding: 2px 5px; border-radius: 999px; background: #e9eeea; color: #59645d; font-size: 9px; font-weight: 700; text-align: center; }
+    .simulation-tab[aria-selected="true"] .simulation-tab-count { background: #e4f5ea; color: #087c3b; }
+    .simulation-window { display: grid; gap: 14px; margin-top: 12px; }
+    .simulation-window[hidden] { display: none; }
+    .simulation-window > .simulation-section { margin-top: 0; }
     .simulation-section { display: grid; gap: 8px; margin-top: 18px; }
     .simulation-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .simulation-section h3 { margin: 0; font-size: 13px; }
@@ -332,25 +340,38 @@ shadow.innerHTML = `
         <div class="simulation-metrics"></div>
       </div>
       <p class="simulation-status empty" role="status"></p>
-      <section class="simulation-section">
-        <div class="simulation-section-heading"><h3>Posições</h3><span class="simulation-positions-count simulation-section-count">0</span></div>
-        <div class="simulation-positions"></div>
-      </section>
-      <section class="simulation-section">
-        <div class="simulation-section-heading"><h3>Ordens abertas</h3><span class="simulation-orders-count simulation-section-count">0</span></div>
+      <div class="simulation-tabs" role="tablist" aria-label="Visões da carteira virtual">
+        <button id="simulation-tab-orders" class="simulation-tab" type="button" role="tab" data-simulation-tab="orders" aria-controls="simulation-window-orders" aria-selected="true" tabindex="0">
+          Ordens abertas <span class="simulation-tab-count simulation-orders-count">0</span>
+        </button>
+        <button id="simulation-tab-positions" class="simulation-tab" type="button" role="tab" data-simulation-tab="positions" aria-controls="simulation-window-positions" aria-selected="false" tabindex="-1">
+          Posições <span class="simulation-tab-count simulation-positions-count">0</span>
+        </button>
+        <button id="simulation-tab-history" class="simulation-tab" type="button" role="tab" data-simulation-tab="history" aria-controls="simulation-window-history" aria-selected="false" tabindex="-1">
+          Histórico <span class="simulation-tab-count simulation-history-count">0</span>
+        </button>
+      </div>
+      <section id="simulation-window-orders" class="simulation-window" role="tabpanel" aria-labelledby="simulation-tab-orders" data-simulation-window="orders" tabindex="0">
+        <div class="simulation-section-heading"><h3>Ordens abertas</h3></div>
         <div class="simulation-orders"></div>
       </section>
-      <section class="simulation-section">
-        <div class="simulation-section-heading">
-          <div class="simulation-section-heading"><h3>Histórico de ordens</h3><span class="simulation-order-history-count simulation-section-count">0</span></div>
-          <button class="simulation-clear-history" type="button" disabled>Limpar histórico</button>
-        </div>
-        <p class="simulation-history-note">Apagar registros não altera o saldo, as posições ou os preenchimentos.</p>
-        <div class="simulation-order-history"></div>
+      <section id="simulation-window-positions" class="simulation-window" role="tabpanel" aria-labelledby="simulation-tab-positions" data-simulation-window="positions" tabindex="0" hidden>
+        <div class="simulation-section-heading"><h3>Posições</h3></div>
+        <div class="simulation-positions"></div>
       </section>
-      <section class="simulation-section">
-        <div class="simulation-section-heading"><h3>Atividade recente</h3><span class="simulation-fills-count simulation-section-count">0</span></div>
-        <div class="simulation-fills"></div>
+      <section id="simulation-window-history" class="simulation-window" role="tabpanel" aria-labelledby="simulation-tab-history" data-simulation-window="history" tabindex="0" hidden>
+        <section class="simulation-section">
+          <div class="simulation-section-heading">
+            <h3>Histórico de ordens</h3>
+            <button class="simulation-clear-history" type="button" disabled>Limpar histórico</button>
+          </div>
+          <p class="simulation-history-note">Apagar registros não altera o saldo, as posições ou os preenchimentos.</p>
+          <div class="simulation-order-history"></div>
+        </section>
+        <section class="simulation-section">
+          <div class="simulation-section-heading"><h3>Atividade recente</h3><span class="simulation-section-count simulation-fills-count">0</span></div>
+          <div class="simulation-fills"></div>
+        </section>
       </section>
     </div>
     <div class="view" data-panel="settings" role="tabpanel" hidden>
@@ -485,6 +506,24 @@ simulationResetBackdrop.addEventListener("click", (event) => {
 backdrop.addEventListener("click", togglePanel);
 shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));
+});
+shadow.querySelectorAll(".simulation-tab").forEach((tab, index, tabs) => {
+  tab.addEventListener("click", () => selectSimulationWindow(tab.dataset.simulationTab));
+  tab.addEventListener("keydown", (event) => {
+    const keyDirections = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      const target = event.key === "Home" ? tabs[0] : tabs[tabs.length - 1];
+      selectSimulationWindow(target.dataset.simulationTab);
+      target.focus();
+      return;
+    }
+    if (!keyDirections[event.key]) return;
+    event.preventDefault();
+    const nextIndex = (index + keyDirections[event.key] + tabs.length) % tabs.length;
+    selectSimulationWindow(tabs[nextIndex].dataset.simulationTab);
+    tabs[nextIndex].focus();
+  });
 });
 setupRuleBoard();
 shadow.querySelectorAll(".favorite-filter").forEach((button) => {

@@ -93,6 +93,18 @@ async function refreshSimulation() {
   renderSimulation();
 }
 
+function selectSimulationWindow(windowName) {
+  const tabs = shadow.querySelectorAll(".simulation-tab");
+  for (const tab of tabs) {
+    const selected = tab.dataset.simulationTab === windowName;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  for (const windowElement of shadow.querySelectorAll(".simulation-window")) {
+    windowElement.hidden = windowElement.dataset.simulationWindow !== windowName;
+  }
+}
+
 async function fetchSimulationBook(tokenId) {
   if (!/^\d+$/.test(String(tokenId))) {
     throw new Error("O identificador do resultado para simulação é inválido.");
@@ -636,7 +648,7 @@ function renderSimulation() {
   simulationStatusElement.textContent = `${simulationStatus} Os valores são estimativas brutas; sem taxas ou posição na fila.`;
   setSimulationCount(".simulation-positions-count", positions.length);
   setSimulationCount(".simulation-orders-count", pendingOrders.length);
-  setSimulationCount(".simulation-order-history-count", historicalOrders.length);
+  setSimulationCount(".simulation-history-count", historicalOrders.length + simulationLedger.length);
   setSimulationCount(".simulation-fills-count", simulationLedger.length);
   simulationClearHistoryButton.disabled = historicalOrders.length === 0;
   renderSimulationPositions(positions);
