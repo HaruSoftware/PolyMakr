@@ -21,14 +21,7 @@ async function initializeSimulation() {
     ]);
     let account = stored[SIMULATION_ACCOUNT_KEY];
     if (account === undefined) {
-      account = {
-        initialCash: SIMULATION_INITIAL_CASH,
-        cash: SIMULATION_INITIAL_CASH,
-        realizedPnl: 0,
-        positions: {},
-        bookLiquidity: {},
-        createdAt: Date.now()
-      };
+      account = createSimulationAccount(SIMULATION_INITIAL_CASH);
       await chrome.storage.local.set({ [SIMULATION_ACCOUNT_KEY]: account });
     } else if (!isValidSimulationAccount(account)) {
       throw new Error("A carteira virtual salva é inválida; os dados existentes foram preservados.");
@@ -42,6 +35,19 @@ async function initializeSimulation() {
     }
   });
   await refreshSimulation();
+  simulationInitialCashInput.value = String(simulationAccount.initialCash);
+}
+
+function createSimulationAccount(initialCash) {
+  return {
+    initialCash,
+    cash: initialCash,
+    realizedPnl: 0,
+    positions: {},
+    bookLiquidity: {},
+    createdAt: Date.now(),
+    generation: crypto.randomUUID()
+  };
 }
 
 function isValidSimulationAccount(account) {
@@ -128,6 +134,7 @@ function normalizeBookLevels(levels, side) {
 }
 
 async function createSimulationOrder(rule) {
+  const startingGeneration = (await readSimulationState()).account.generation;
   const marketData = await resolveMarketTradingData(rule);
   if (marketData.isActive === false) {
     throw new Error("Este mercado não está ativo para receber ordens.");
@@ -139,6 +146,9 @@ async function createSimulationOrder(rule) {
 
   const result = await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
     const { account, orders, ledger } = await readSimulationState();
+    if (account.generation !== startingGeneration) {
+      throw new Error("A carteira foi reiniciada enquanto a ordem era preparada; tente novamente.");
+    }
     account.bookLiquidity = account.bookLiquidity || {};
     const shares = Number(rule.shares);
     const limitCents = Number(rule.orderLimitCents);
@@ -209,6 +219,40 @@ async function createSimulationOrder(rule) {
   }
   await updateSimulationArchive(result.order);
   return result.order;
+}
+
+async function resetSimulationWallet(event) {
+  event.preventDefault();
+  const initialCash = Number(simulationInitialCashInput.value);
+  if (!simulationInitialCashInput.checkValidity() || !Number.isFinite(initialCash) || initialCash <= 0) {
+    simulationInitialCashInput.reportValidity();
+    return;
+  }
+  if (!window.confirm(
+    `Criar uma nova carteira com ${formatSimulationCurrency(initialCash)}? ` +
+    "Isso apagará o saldo, posições, ordens e fills da simulação atual. Regras e registros serão mantidos."
+  )) return;
+
+  simulationResetWalletButton.disabled = true;
+  try {
+    await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
+      const account = createSimulationAccount(initialCash);
+      await chrome.storage.local.set({
+        [SIMULATION_ACCOUNT_KEY]: account,
+        [SIMULATION_ORDERS_KEY]: [],
+        [SIMULATION_LEDGER_KEY]: []
+      });
+      simulationAccount = account;
+      simulationOrders = [];
+      simulationLedger = [];
+    });
+    simulationStatus = `Nova carteira criada com saldo inicial de ${formatSimulationCurrency(initialCash)}.`;
+    renderSimulation();
+  } catch (error) {
+    showToast("Não foi possível reiniciar a carteira", error.message || String(error), "error");
+  } finally {
+    simulationResetWalletButton.disabled = false;
+  }
 }
 
 function cloneBook(book) {

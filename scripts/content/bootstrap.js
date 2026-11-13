@@ -162,6 +162,10 @@ shadow.innerHTML = `
     .wallet-help { grid-column: 1 / -1; margin: -4px 0 0; color: #78827b; font-size: 10px; }
     .simulation-overview { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr); gap: 10px; }
     .simulation-equity, .simulation-metric { min-width: 0; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
+    .simulation-wallet-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; margin: 0 0 14px; padding: 12px; border: 1px solid #e6ebe7; border-radius: 10px; background: #f8faf8; }
+    .simulation-wallet-form button { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 7px; background: #a33b2e; color: #fff; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+    .simulation-wallet-form button:disabled { cursor: wait; opacity: .6; }
+    .simulation-wallet-help { grid-column: 1 / -1; margin: 0; color: #78827b; font-size: 10px; }
     .simulation-equity-label, .simulation-metric span { display: block; color: #78827b; font-size: 10px; }
     .simulation-equity-value { display: block; margin-top: 4px; font-size: 23px; letter-spacing: -.5px; }
     .simulation-equity-change { display: inline-flex; margin-top: 8px; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 750; }
@@ -321,6 +325,11 @@ shadow.innerHTML = `
     <div class="view" data-panel="simulation" role="tabpanel" hidden>
       <div class="section-heading"><h2>Simulação ao vivo</h2><span class="count-chip">Carteira virtual</span></div>
       <p class="simulation-note">Carteira virtual · ordens sem envio real · livro atualizado enquanto o mercado estiver aberto.</p>
+      <form class="simulation-wallet-form">
+        <label>Saldo inicial da nova carteira (US$)<input class="simulation-initial-cash" type="number" min="0.01" max="1000000000" step="0.01" value="1000" required></label>
+        <button class="simulation-reset-wallet" type="submit">Resetar e criar carteira</button>
+        <p class="simulation-wallet-help">A ação apaga posições, ordens e fills da simulação atual. Regras e registros permanecem.</p>
+      </form>
       <div class="simulation-overview">
         <div class="simulation-equity"></div>
         <div class="simulation-metrics"></div>
@@ -388,6 +397,9 @@ const simulationOrdersElement = shadow.querySelector(".simulation-orders");
 const simulationOrderHistoryElement = shadow.querySelector(".simulation-order-history");
 const simulationFillsElement = shadow.querySelector(".simulation-fills");
 const simulationClearHistoryButton = shadow.querySelector(".simulation-clear-history");
+const simulationWalletForm = shadow.querySelector(".simulation-wallet-form");
+const simulationInitialCashInput = shadow.querySelector(".simulation-initial-cash");
+const simulationResetWalletButton = shadow.querySelector(".simulation-reset-wallet");
 const archiveSelectAllInput = shadow.querySelector(".archive-select-all-input");
 const archiveDeleteSelectedButton = shadow.querySelector(".archive-delete-selected");
 const archiveClearAllButton = shadow.querySelector(".archive-clear-all");
@@ -436,6 +448,7 @@ let mutationScanScheduled = false;
 
 shadow.querySelector(".close").addEventListener("click", togglePanel);
 simulationClearHistoryButton.addEventListener("click", clearSimulationOrderHistory);
+simulationWalletForm.addEventListener("submit", resetSimulationWallet);
 backdrop.addEventListener("click", togglePanel);
 shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));
