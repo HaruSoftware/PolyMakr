@@ -273,12 +273,15 @@ async function processQueuedRulesLocked(marketKey, states) {
         simulationOrder = await createSimulationOrder(rule);
         const status = simulationOrder.status === "filled"
           ? "filled"
-          : simulationOrder.status === "partially_filled" ? "partially_filled" : "awaiting_fill";
+          : simulationOrder.status === "partially_filled" ? "partially_filled"
+            : simulationOrder.status === "failed" ? "failed" : "awaiting_fill";
         const message = simulationOrder.status === "filled"
           ? `Ordem simulada preenchida: ${simulationOrder.filledShares} shares.`
           : simulationOrder.status === "partially_filled"
             ? `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares.`
-            : "Ordem simulada aberta; aguardando liquidez compatível no livro.";
+            : simulationOrder.status === "failed"
+              ? `Ordem simulada falhou: ${simulationOrder.failureReason}`
+              : "Ordem simulada aberta; aguardando liquidez compatível no livro.";
         states[rule.id] = {
           ...states[rule.id],
           status,
@@ -332,7 +335,8 @@ async function processQueuedRulesLocked(marketKey, states) {
       const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
       const simulationOrderStatus = simulationOrder?.status === "filled"
         ? "filled"
-        : simulationOrder?.status === "partially_filled" ? "partially_filled" : "awaiting_fill";
+        : simulationOrder?.status === "partially_filled" ? "partially_filled"
+          : simulationOrder?.status === "failed" ? "failed" : "awaiting_fill";
       states[rule.id].status = simulationOrder
         ? simulationOrderStatus
         : orderWasSent ? "awaiting_fill" : actionCompleted ? "completed" : "failed";

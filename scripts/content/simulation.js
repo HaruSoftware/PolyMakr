@@ -156,14 +156,6 @@ async function createSimulationOrder(rule) {
       if (shares * limitCents / 100 > account.cash - reservedCash + 1e-8) {
         throw new Error("Saldo virtual disponível insuficiente para reservar esta ordem de compra.");
       }
-    } else {
-      const position = account.positions[marketData.assetId];
-      const reservedShares = pendingOrders
-        .filter((item) => item.side === "sell" && item.assetId === marketData.assetId)
-        .reduce((total, item) => total + item.remainingShares, 0);
-      if (!position || shares > Number(position.shares) - reservedShares + 1e-8) {
-        throw new Error("A carteira virtual não possui shares disponíveis para esta venda.");
-      }
     }
 
     const nextOrder = {
@@ -237,6 +229,11 @@ function getWorkingBook(account, assetId, book) {
 }
 
 function applyBookToSimulationOrder(order, book, account, ledger) {
+  if (order.side === "sell" && (Number(account.positions[order.assetId]?.shares) || 0) <= 1e-8) {
+    failSimulationSellOrder(order, "A carteira virtual não possui shares disponíveis para preencher esta venda.");
+    return;
+  }
+
   const levels = order.side === "buy" ? book.asks : book.bids;
   for (const level of levels) {
     if (order.remainingShares <= 1e-8) break;
@@ -245,7 +242,15 @@ function applyBookToSimulationOrder(order, book, account, ledger) {
       : level.price * 100 >= order.limitCents - 1e-8;
     if (!withinLimit || level.size <= 1e-8) break;
 
-    const shares = Math.min(order.remainingShares, level.size);
+    const availableShares = order.side === "sell"
+      ? Number(account.positions[order.assetId]?.shares) || 0
+      : Number.POSITIVE_INFINITY;
+    if (availableShares <= 1e-8) {
+      failSimulationSellOrder(order, "A carteira virtual não possui shares disponíveis para preencher esta venda.");
+      return;
+    }
+
+    const shares = Math.min(order.remainingShares, level.size, availableShares);
     const notional = shares * level.price;
     const fill = {
       id: crypto.randomUUID(),
@@ -273,9 +278,22 @@ function applyBookToSimulationOrder(order, book, account, ledger) {
     level.size = Math.max(0, level.size - shares);
   }
 
+  if (order.side === "sell"
+    && order.remainingShares > 1e-8
+    && (Number(account.positions[order.assetId]?.shares) || 0) <= 1e-8) {
+    failSimulationSellOrder(order, "A carteira virtual não possui shares disponíveis para preencher o restante da venda.");
+    return;
+  }
+
   order.status = order.remainingShares <= 1e-8
     ? "filled"
     : order.filledShares > 1e-8 ? "partially_filled" : "open";
+  order.updatedAt = Date.now();
+}
+
+function failSimulationSellOrder(order, reason) {
+  order.status = "failed";
+  order.failureReason = reason;
   order.updatedAt = Date.now();
 }
 
@@ -421,7 +439,7 @@ async function cancelSimulationOrder(orderId) {
       return target;
     });
     await updateSimulationArchive(order);
-    simulationStatus = "Ordem simulada cancelada; o saldo e as shares reservadas foram liberados.";
+    simulationStatus = "Ordem simulada cancelada.";
     renderSimulation();
   } catch (error) {
     showToast("Não foi possível cancelar a ordem simulada", error.message || String(error), "error");
@@ -433,14 +451,16 @@ async function updateSimulationArchive(order) {
     open: "awaiting_fill",
     partially_filled: "partially_filled",
     filled: "filled",
-    cancelled: "cancelled"
+    cancelled: "cancelled",
+    failed: "failed"
   }[order.status];
   if (!archiveStatus) return;
   const statusMessages = {
     awaiting_fill: "Ordem simulada aberta; aguardando liquidez compatível no livro.",
     partially_filled: `Ordem simulada preenchida parcialmente: ${order.filledShares} de ${order.requestedShares} shares.`,
     filled: `Ordem simulada preenchida: ${order.filledShares} shares.`,
-    cancelled: `Ordem simulada cancelada após preencher ${order.filledShares} de ${order.requestedShares} shares.`
+    cancelled: `Ordem simulada cancelada após preencher ${order.filledShares} de ${order.requestedShares} shares.`,
+    failed: order.failureReason || "Ordem simulada falhou."
   };
   await navigator.locks.request("polymakr-rules-storage", async () => {
     const stored = await chrome.storage.local.get([ARCHIVE_KEY, executionStorageKey(order.marketKey)]);
@@ -630,7 +650,8 @@ function createSimulationStatus(status) {
     open: "Aberta",
     partially_filled: "Parcial",
     filled: "Preenchida",
-    cancelled: "Cancelada"
+    cancelled: "Cancelada",
+    failed: "Falhou"
   }[status] || status;
   return badge;
 }

@@ -45,7 +45,7 @@ Cada regra dispara uma única vez no mercado ao qual está vinculada e não é e
 
 ## Simulação
 
-O modo **Simular ordem (carteira virtual)** acompanha o mercado ao vivo e cria uma ordem limite virtual na aba **Simulação**. A carteira começa com US$ 1.000 virtuais; compras reservam saldo e vendas exigem shares disponíveis. Ordens compram contra asks até o limite e vendem contra bids até o limite, respeitando a liquidez retornada pelo livro público. Preenchimentos parciais permanecem abertos e podem ser cancelados; o saldo, as posições, o histórico de ordens e o P&L realizado/não realizado ficam salvos localmente.
+O modo **Simular ordem (carteira virtual)** acompanha o mercado ao vivo e cria uma ordem limite virtual na aba **Simulação**. A carteira começa com US$ 1.000 virtuais; compras reservam saldo, mas vendas não reservam shares antecipadamente. Cada fill de venda é limitado à posição disponível naquele instante; se outra ordem já tiver vendido as shares, a ordem sem saldo para preencher falha, sem permitir venda a descoberto. Ordens compram contra asks até o limite e vendem contra bids até o limite, respeitando a liquidez retornada pelo livro público. Preenchimentos parciais permanecem abertos enquanto houver shares disponíveis e podem ser cancelados; o saldo, as posições, o histórico de ordens e o P&L realizado/não realizado ficam salvos localmente.
 
 O painel da carteira mostra patrimônio e retorno total, saldo disponível, P&L realizado e não realizado, além de tabelas para posições, ordens e os 25 fills mais recentes. Ganhos aparecem em verde e perdas em vermelho. O P&L das posições abertas usa o melhor bid como estimativa de saída.
 
