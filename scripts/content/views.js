@@ -421,6 +421,17 @@ function createRuleMore(rule, details) {
 
 function renderFavorites() {
   favoritesElement.replaceChildren();
+  const favoriteCounts = {
+    all: favorites.length,
+    Up: favorites.filter((favorite) => favorite.outcome !== "Down").length,
+    Down: favorites.filter((favorite) => favorite.outcome === "Down").length
+  };
+  shadow.querySelectorAll(".favorite-filter").forEach((button) => {
+    const filter = button.dataset.outcomeFilter;
+    button.setAttribute("aria-pressed", String(favoriteOutcomeFilter === filter));
+    button.querySelector(".favorite-filter-count").textContent = String(favoriteCounts[filter]);
+  });
+
   if (favorites.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty";
@@ -429,7 +440,20 @@ function renderFavorites() {
     return;
   }
 
-  for (const favorite of favorites) {
+  const visibleFavorites = favoriteOutcomeFilter === "all"
+    ? favorites
+    : favorites.filter((favorite) =>
+      (favorite.outcome === "Down" ? "Down" : "Up") === favoriteOutcomeFilter
+    );
+  if (visibleFavorites.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = `Nenhum favorito ${favoriteOutcomeFilter === "Up" ? "UP" : "DOWN"}.`;
+    favoritesElement.append(empty);
+    return;
+  }
+
+  for (const favorite of visibleFavorites) {
     const card = document.createElement("article");
     card.className = "template";
     card.draggable = true;
@@ -463,6 +487,14 @@ function renderFavorites() {
     favoriteIcon.className = "action-icon";
     favoriteIcon.textContent = "★";
     favoriteIcon.title = "Modelo favorito";
+    if (favorite.mode === "paper") {
+      const simulationIcon = document.createElement("span");
+      simulationIcon.className = "action-icon favorite-simulation";
+      simulationIcon.textContent = "S";
+      simulationIcon.title = "Simulação na carteira virtual";
+      simulationIcon.setAttribute("aria-label", simulationIcon.title);
+      topActions.append(simulationIcon);
+    }
     topActions.append(favoriteIcon, createFavoriteMore(favorite));
     header.append(heading, topActions);
     card.append(header);

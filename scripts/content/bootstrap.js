@@ -68,6 +68,12 @@ shadow.innerHTML = `
     .lane-heading { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 0 0 9px; font-size: 12px; font-weight: 750; }
     .lane-count { flex: 0 0 auto; padding: 2px 6px; border-radius: 999px; background: #e9eeea; color: #59645d; font-size: 9px; }
     .rules, .favorites { display: grid; align-content: start; gap: 6px; min-height: 170px; }
+    .favorite-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 7px; }
+    .favorite-filter { display: flex; min-width: 0; align-items: center; justify-content: center; gap: 4px; padding: 5px 3px; border: 1px solid #e1e7e2; border-radius: 6px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 9px; font-weight: 750; }
+    .favorite-filter[aria-pressed="true"] { border-color: #b8cdbd; background: #e8f4ec; color: #087c3b; }
+    .favorite-filter[data-outcome-filter="Up"][aria-pressed="true"] { border-color: #a7d6b7; background: #e4f5ea; color: #087c3b; }
+    .favorite-filter[data-outcome-filter="Down"][aria-pressed="true"] { border-color: #e5b7b3; background: #fde9e8; color: #a33b2e; }
+    .favorite-filter-count { color: #78827b; font-size: 8px; }
     .rule, .template { position: relative; display: grid; gap: 5px; min-height: 58px; padding: 6px 7px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
     .rule:active, .template:active { cursor: grabbing; }
     .rule[aria-grabbed="true"], .template[aria-grabbed="true"] { opacity: .5; }
@@ -96,6 +102,7 @@ shadow.innerHTML = `
     .action-icon.auto_limit { background: #e8efff; color: #3156a8; }
     .action-icon.paper { background: #e8f4ec; color: #087c3b; }
     .action-icon.confirm { background: #fff3d8; color: #8a5a00; }
+    .action-icon.favorite-simulation { background: #fff0dc; color: #b86a00; }
     .more { position: relative; flex: 0 0 auto; }
     .more summary { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 5px; color: #59645d; cursor: pointer; font-size: 16px; font-weight: 800; line-height: 1; list-style: none; }
     .more summary::-webkit-details-marker { display: none; }
@@ -282,6 +289,11 @@ shadow.innerHTML = `
         </section>
         <section class="board-lane" data-lane="favorites" aria-label="Favoritos">
           <h3 class="lane-heading">Favoritos <span class="lane-count">0</span></h3>
+          <div class="favorite-filters" role="group" aria-label="Filtrar favoritos por resultado">
+            <button class="favorite-filter" type="button" data-outcome-filter="all" aria-pressed="true">Todos <span class="favorite-filter-count">0</span></button>
+            <button class="favorite-filter" type="button" data-outcome-filter="Up" aria-pressed="false">UP <span class="favorite-filter-count">0</span></button>
+            <button class="favorite-filter" type="button" data-outcome-filter="Down" aria-pressed="false">DOWN <span class="favorite-filter-count">0</span></button>
+          </div>
           <div class="favorites"></div>
         </section>
       </div>
@@ -390,6 +402,7 @@ const cancelEditButton = shadow.querySelector(".cancel-edit");
 const tradingSideGroups = new WeakSet();
 let rules = [];
 let favorites = [];
+let favoriteOutcomeFilter = "all";
 let archivedRules = [];
 let selectedArchiveIds = new Set();
 let pendingArchiveDeleteIds = [];
@@ -422,6 +435,13 @@ shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));
 });
 setupRuleBoard();
+shadow.querySelectorAll(".favorite-filter").forEach((button) => {
+  button.addEventListener("click", () => {
+    const selectedFilter = button.dataset.outcomeFilter;
+    favoriteOutcomeFilter = favoriteOutcomeFilter === selectedFilter ? "all" : selectedFilter;
+    renderFavorites();
+  });
+});
 cancelEditButton.addEventListener("click", () => {
   resetRuleForm();
   selectView("rules");
