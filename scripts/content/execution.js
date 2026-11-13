@@ -275,13 +275,20 @@ async function processQueuedRulesLocked(marketKey, states) {
           ? "filled"
           : simulationOrder.status === "partially_filled" ? "partially_filled"
             : simulationOrder.status === "failed" ? "failed" : "awaiting_fill";
-        const message = simulationOrder.status === "filled"
-          ? `Ordem simulada preenchida: ${simulationOrder.filledShares} shares.`
-          : simulationOrder.status === "partially_filled"
-            ? `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares.`
-            : simulationOrder.status === "failed"
-              ? `Ordem simulada falhou: ${simulationOrder.failureReason}`
-              : "Ordem simulada aberta; aguardando liquidez compatível no livro.";
+        let message;
+        if (simulationOrder.waitingForPosition) {
+          message = simulationOrder.filledShares > 0
+            ? `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares; aguardando mais shares para vender.`
+            : "Ordem de venda simulada aguardando shares disponíveis na carteira virtual.";
+        } else if (simulationOrder.status === "filled") {
+          message = `Ordem simulada preenchida: ${simulationOrder.filledShares} shares.`;
+        } else if (simulationOrder.status === "partially_filled") {
+          message = `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares.`;
+        } else if (simulationOrder.status === "failed") {
+          message = `Ordem simulada falhou: ${simulationOrder.failureReason}`;
+        } else {
+          message = "Ordem simulada aberta; aguardando liquidez compatível no livro.";
+        }
         states[rule.id] = {
           ...states[rule.id],
           status,
@@ -535,13 +542,29 @@ async function resolveMarketTradingData(rule) {
   }
   const isExplicitlyFalse = (value) => value === false || value === "false";
   const isExplicitlyTrue = (value) => value === true || value === "true";
+  const endDate = parseMarketEndDate(market.endDateIso || market.endDate);
   return {
     conditionId: market.conditionId,
     assetId: String(assetIds[outcomeIndex]),
+    endDate: Number.isFinite(endDate) ? endDate : null,
+    isClosed: isExplicitlyTrue(market.closed),
     isActive: !isExplicitlyFalse(market.active)
       && !isExplicitlyTrue(market.closed)
       && !isExplicitlyFalse(market.acceptingOrders)
   };
+}
+
+function parseMarketEndDate(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value < 1e12 ? value * 1000 : value;
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function parseMarketArray(value) {

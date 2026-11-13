@@ -186,6 +186,9 @@ async function createSimulationOrder(rule) {
       marketTitle: rule.marketTitle || rule.marketKey,
       conditionId: marketData.conditionId,
       assetId: marketData.assetId,
+      marketSlug: rule.marketSlug,
+      marketRoute: rule.marketRoute,
+      marketEndDate: marketData.endDate,
       outcome: rule.outcome,
       side: rule.side,
       limitCents,
@@ -206,12 +209,21 @@ async function createSimulationOrder(rule) {
       .sort((left, right) => left.createdAt - right.createdAt)) {
       const beforeStatus = pendingOrder.status;
       const beforeFilled = pendingOrder.filledShares;
+      const beforeWaitingForPosition = pendingOrder.waitingForPosition;
       applyBookToSimulationOrder(pendingOrder, mutableBook, account, ledger);
-      if (beforeStatus !== pendingOrder.status || beforeFilled !== pendingOrder.filledShares) {
+      if (beforeStatus !== pendingOrder.status || beforeFilled !== pendingOrder.filledShares
+        || beforeWaitingForPosition !== pendingOrder.waitingForPosition) {
         changedOrders.push(pendingOrder);
       }
     }
     applyBookToSimulationOrder(nextOrder, mutableBook, account, ledger);
+    const position = account.positions[marketData.assetId];
+    const bestBid = book.bids[0]?.price;
+    if (position && Number.isFinite(bestBid)) {
+      position.markPrice = bestBid;
+      position.lastBidPrice = bestBid;
+      position.lastBidAt = book.fetchedAt;
+    }
     account.bookLiquidity[marketData.assetId] = mutableBook;
     await chrome.storage.local.set({
       [SIMULATION_ACCOUNT_KEY]: account,
@@ -303,7 +315,9 @@ function getWorkingBook(account, assetId, book) {
 
 function applyBookToSimulationOrder(order, book, account, ledger) {
   if (order.side === "sell" && (Number(account.positions[order.assetId]?.shares) || 0) <= 1e-8) {
-    failSimulationSellOrder(order, "A carteira virtual não possui shares disponíveis para preencher esta venda.");
+    order.waitingForPosition = true;
+    order.status = order.filledShares > 1e-8 ? "partially_filled" : "open";
+    order.updatedAt = Date.now();
     return;
   }
 
@@ -319,11 +333,11 @@ function applyBookToSimulationOrder(order, book, account, ledger) {
       ? Number(account.positions[order.assetId]?.shares) || 0
       : Number.POSITIVE_INFINITY;
     if (availableShares <= 1e-8) {
-      failSimulationSellOrder(order, "A carteira virtual não possui shares disponíveis para preencher esta venda.");
-      return;
+      break;
     }
 
     const shares = Math.min(order.remainingShares, level.size, availableShares);
+    if (shares <= 1e-8) break;
     const notional = shares * level.price;
     const fill = {
       id: crypto.randomUUID(),
@@ -351,22 +365,12 @@ function applyBookToSimulationOrder(order, book, account, ledger) {
     level.size = Math.max(0, level.size - shares);
   }
 
-  if (order.side === "sell"
+  order.waitingForPosition = order.side === "sell"
     && order.remainingShares > 1e-8
-    && (Number(account.positions[order.assetId]?.shares) || 0) <= 1e-8) {
-    failSimulationSellOrder(order, "A carteira virtual não possui shares disponíveis para preencher o restante da venda.");
-    return;
-  }
-
+    && (Number(account.positions[order.assetId]?.shares) || 0) <= 1e-8;
   order.status = order.remainingShares <= 1e-8
     ? "filled"
     : order.filledShares > 1e-8 ? "partially_filled" : "open";
-  order.updatedAt = Date.now();
-}
-
-function failSimulationSellOrder(order, reason) {
-  order.status = "failed";
-  order.failureReason = reason;
   order.updatedAt = Date.now();
 }
 
@@ -384,10 +388,16 @@ function applySimulationFill(order, fill, account) {
       conditionId: order.conditionId,
       marketKey: order.marketKey,
       marketTitle: order.marketTitle,
+      ruleId: order.ruleId,
+      marketSlug: order.marketSlug,
+      marketRoute: order.marketRoute,
+      marketEndDate: order.marketEndDate,
       outcome: order.outcome,
       shares: nextShares,
       averagePrice: (previousCost + fill.notional) / nextShares,
       markPrice: position?.markPrice ?? null,
+      lastBidPrice: position?.lastBidPrice,
+      lastBidAt: position?.lastBidAt,
       updatedAt: fill.createdAt
     };
     account.cash -= fill.notional;
@@ -412,61 +422,156 @@ function applySimulationFill(order, fill, account) {
 }
 
 async function pollSimulationOrders(marketKey) {
-  if (!marketKey || simulationPollRunning || Date.now() - simulationLastPollAt < SIMULATION_POLL_INTERVAL) return;
+  if (simulationPollRunning || Date.now() - simulationLastPollAt < SIMULATION_POLL_INTERVAL) return;
   simulationPollRunning = true;
   simulationLastPollAt = Date.now();
   try {
     const state = await readSimulationState();
-    const tokenIds = new Set([
+    const trackedMarketKeys = new Set([
       ...state.orders
-        .filter((order) => order.marketKey === marketKey && ["open", "partially_filled"].includes(order.status))
-        .map((order) => order.assetId),
+        .filter((order) => ["open", "partially_filled"].includes(order.status))
+        .map((order) => order.marketKey),
       ...Object.values(state.account.positions)
-        .filter((position) => position.marketKey === marketKey)
-        .map((position) => position.assetId)
-    ]);
-    if (tokenIds.size === 0) {
+        .filter((position) => !position.marketExpiredAt)
+        .map((position) => position.marketKey)
+    ].filter(Boolean));
+    const marketKeys = [...trackedMarketKeys].filter((key) =>
+      key === marketKey || hasExpiredMarketDate(state, key)
+    );
+    if (marketKeys.length === 0) {
       simulationStatus = "Aguardando dados do mercado.";
       renderSimulation();
       return;
     }
 
-    const results = await Promise.all([...tokenIds].map(async (tokenId) => {
-      try {
-        return [tokenId, await fetchSimulationBook(tokenId), null];
-      } catch (error) {
-        return [tokenId, null, error instanceof Error ? error.message : String(error)];
+    const updates = await Promise.all(marketKeys.map(async (currentMarketKey) => {
+      const marketOrders = state.orders.filter((order) => order.marketKey === currentMarketKey
+        && ["open", "partially_filled"].includes(order.status));
+      const marketPositions = Object.values(state.account.positions).filter((position) =>
+        position.marketKey === currentMarketKey && !position.marketExpiredAt
+      );
+      let reference = marketOrders.find((item) => item.marketSlug && item.marketRoute)
+        || marketPositions.find((item) => item.marketSlug && item.marketRoute)
+        || marketOrders[0]
+        || marketPositions[0];
+      if (!reference?.marketSlug || !reference.marketRoute) {
+        const stored = await chrome.storage.local.get(ARCHIVE_KEY);
+        const entries = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
+        const relatedEntry = entries.find((entry) => {
+          const rule = entry.rule || entry;
+          return marketOrders.some((order) => entry.id === order.ruleId || entry.simulationOrderId === order.id)
+            || marketPositions.some((position) => entry.id === position.ruleId
+              || (rule.marketKey === currentMarketKey
+                && rule.marketTitle === position.marketTitle
+                && rule.outcome === position.outcome));
+        });
+        const rule = relatedEntry?.rule || relatedEntry;
+        if (rule?.marketSlug && rule.marketRoute) reference = rule;
       }
-    }));
-    const books = new Map(results.filter(([, book]) => book).map(([tokenId, book]) => [tokenId, book]));
-    const errors = results.filter(([, , error]) => error).map(([, , error]) => error);
 
-    const changedOrders = await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
+      let marketData = null;
+      let metadataError = "";
+      if (reference?.marketSlug && reference.marketRoute) {
+        try {
+          marketData = await resolveMarketTradingData(reference);
+        } catch (error) {
+          metadataError = error instanceof Error ? error.message : String(error);
+        }
+      }
+      const expired = marketData?.isClosed
+        || (Number.isFinite(marketData?.endDate) && marketData.endDate <= Date.now())
+        || hasExpiredMarketDate(state, currentMarketKey);
+      const tokenIds = new Set([
+        ...marketOrders.map((order) => order.assetId),
+        ...marketPositions.map((position) => position.assetId)
+      ]);
+      const bookResults = expired ? [] : await Promise.all([...tokenIds].map(async (tokenId) => {
+        try {
+          return [tokenId, await fetchSimulationBook(tokenId), ""];
+        } catch (error) {
+          return [tokenId, null, error instanceof Error ? error.message : String(error)];
+        }
+      }));
+      return {
+        marketKey: currentMarketKey,
+        marketData,
+        expired,
+        books: new Map(bookResults.filter(([, book]) => book).map(([tokenId, book]) => [tokenId, book])),
+        errors: [
+          ...(metadataError && !expired ? [metadataError] : []),
+          ...bookResults.filter(([, , error]) => error).map(([, , error]) => error)
+        ]
+      };
+    }));
+
+    const result = await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
       const { account, orders, ledger } = await readSimulationState();
       account.bookLiquidity = account.bookLiquidity || {};
-      const changed = [];
-      for (const [assetId, book] of books) {
-        const mutableBook = getWorkingBook(account, assetId, book);
-        for (const order of orders
-          .filter((item) => item.assetId === assetId && item.marketKey === marketKey
-            && ["open", "partially_filled"].includes(item.status))
-          .sort((left, right) => left.createdAt - right.createdAt)) {
-          const beforeStatus = order.status;
-          const beforeFilled = order.filledShares;
-          applyBookToSimulationOrder(order, mutableBook, account, ledger);
-          if (beforeStatus !== order.status || beforeFilled !== order.filledShares) changed.push(order);
+      const changedOrders = [];
+      let expiredOrders = 0;
+      let settledPositions = 0;
+      let unpricedPositions = 0;
+      let didChange = false;
+      for (const update of updates) {
+        if (Number.isFinite(update.marketData?.endDate) && update.marketData.endDate > 0) {
+          for (const order of orders.filter((item) => item.marketKey === update.marketKey)) {
+            if (order.marketEndDate !== update.marketData.endDate) {
+              order.marketEndDate = update.marketData.endDate;
+              didChange = true;
+            }
+          }
+          for (const position of Object.values(account.positions).filter((item) =>
+            item.marketKey === update.marketKey
+          )) {
+            if (position.marketEndDate !== update.marketData.endDate) {
+              position.marketEndDate = update.marketData.endDate;
+              didChange = true;
+            }
+          }
         }
 
-        account.bookLiquidity[assetId] = mutableBook;
-        const position = account.positions[assetId];
-        const bestBid = book.bids[0]?.price;
-        if (position) {
-          position.markPrice = Number.isFinite(bestBid) ? bestBid : null;
-          position.updatedAt = Date.now();
+        if (update.expired) {
+          const settlement = expireSimulationMarket(account, orders, ledger, update.marketKey);
+          changedOrders.push(...settlement.orders);
+          expiredOrders += settlement.orders.length;
+          settledPositions += settlement.settledPositions;
+          unpricedPositions += settlement.unpricedPositions;
+          didChange = didChange || settlement.changed;
+          continue;
+        }
+
+        for (const [assetId, book] of update.books) {
+          const mutableBook = getWorkingBook(account, assetId, book);
+          for (const order of orders
+            .filter((item) => item.assetId === assetId && item.marketKey === update.marketKey
+              && ["open", "partially_filled"].includes(item.status))
+            .sort((left, right) => left.createdAt - right.createdAt)) {
+            const beforeStatus = order.status;
+            const beforeFilled = order.filledShares;
+            const beforeWaitingForPosition = order.waitingForPosition;
+            applyBookToSimulationOrder(order, mutableBook, account, ledger);
+            if (beforeStatus !== order.status || beforeFilled !== order.filledShares
+              || beforeWaitingForPosition !== order.waitingForPosition) {
+              changedOrders.push(order);
+            }
+          }
+
+          account.bookLiquidity[assetId] = mutableBook;
+          const position = account.positions[assetId];
+          const bestBid = book.bids[0]?.price;
+          if (position) {
+            position.markPrice = Number.isFinite(bestBid) ? bestBid : null;
+            position.updatedAt = Date.now();
+            if (Number.isFinite(bestBid)) {
+              position.lastBidPrice = bestBid;
+              position.lastBidAt = book.fetchedAt;
+            }
+          }
+          didChange = true;
         }
       }
 
-      if (books.size > 0) {
+      if (didChange) {
         await chrome.storage.local.set({
           [SIMULATION_ACCOUNT_KEY]: account,
           [SIMULATION_ORDERS_KEY]: orders,
@@ -476,19 +581,83 @@ async function pollSimulationOrders(marketKey) {
         simulationOrders = orders;
         simulationLedger = ledger;
       }
-      return changed;
+      return { changedOrders, expiredOrders, settledPositions, unpricedPositions, didChange };
     });
 
-    for (const order of changedOrders) {
+    for (const order of result.changedOrders) {
       await updateSimulationArchive(order);
     }
-    simulationStatus = errors.length
-      ? `Falha ao atualizar ${errors.length} livro(s) de ofertas: ${errors[0]}`
-      : books.size ? `Livro atualizado às ${new Date().toLocaleTimeString("pt-BR")}.` : simulationStatus;
+    const errors = updates.flatMap((update) => update.errors);
+    const expiredMarketCount = updates.filter((update) => update.expired).length;
+    simulationStatus = expiredMarketCount
+      ? `${expiredMarketCount} mercado(s) encerrado(s); ${result.expiredOrders} ordem(ns) expiradas e ${result.settledPositions} posição(ões) liquidadas pelo último bid observado.${result.unpricedPositions ? ` ${result.unpricedPositions} posição(ões) mantidas sem liquidação porque não havia bid registrado.` : ""}`
+      : errors.length
+        ? `Falha ao atualizar ${errors.length} mercado(s)/livro(s): ${errors[0]}`
+        : result.didChange ? `Livro atualizado às ${new Date().toLocaleTimeString("pt-BR")}.` : simulationStatus;
     renderSimulation();
   } finally {
     simulationPollRunning = false;
   }
+}
+
+function hasExpiredMarketDate(state, marketKey) {
+  const endDate = [
+    ...state.orders.filter((order) => order.marketKey === marketKey).map((order) => order.marketEndDate),
+    ...Object.values(state.account.positions)
+      .filter((position) => position.marketKey === marketKey)
+      .map((position) => position.marketEndDate)
+  ].find((value) => Number.isFinite(value) && value > 0);
+  return Number.isFinite(endDate) && endDate <= Date.now();
+}
+
+function expireSimulationMarket(account, orders, ledger, marketKey) {
+  const now = Date.now();
+  const expiredOrders = orders.filter((order) => order.marketKey === marketKey
+    && ["open", "partially_filled"].includes(order.status));
+  for (const order of expiredOrders) {
+    order.status = "expired";
+    order.expiredAt = now;
+    order.updatedAt = now;
+  }
+
+  let settledPositions = 0;
+  let unpricedPositions = 0;
+  let changed = expiredOrders.length > 0;
+  for (const [assetId, position] of Object.entries(account.positions)) {
+    if (position.marketKey !== marketKey) continue;
+    const cachedBid = account.bookLiquidity[assetId]?.bids?.[0]?.price;
+    const price = [position.lastBidPrice, position.markPrice, cachedBid]
+      .find((value) => Number.isFinite(value) && value > 0 && value < 1);
+    position.marketExpiredAt = now;
+    changed = true;
+    if (!Number.isFinite(price)) {
+      unpricedPositions += 1;
+      continue;
+    }
+
+    const shares = Number(position.shares);
+    const notional = shares * price;
+    const realizedPnl = (price - Number(position.averagePrice)) * shares;
+    account.cash += notional;
+    account.realizedPnl += realizedPnl;
+    ledger.push({
+      id: crypto.randomUUID(),
+      marketKey: position.marketKey,
+      marketTitle: position.marketTitle,
+      assetId,
+      outcome: position.outcome,
+      side: "sell",
+      price,
+      shares,
+      notional,
+      realizedPnl,
+      settlementMethod: "last_bid",
+      createdAt: now
+    });
+    delete account.positions[assetId];
+    settledPositions += 1;
+  }
+  return { orders: expiredOrders, settledPositions, unpricedPositions, changed };
 }
 
 async function cancelSimulationOrder(orderId) {
@@ -525,15 +694,21 @@ async function updateSimulationArchive(order) {
     partially_filled: "partially_filled",
     filled: "filled",
     cancelled: "cancelled",
-    failed: "failed"
+    failed: "failed",
+    expired: "expired"
   }[order.status];
   if (!archiveStatus) return;
   const statusMessages = {
-    awaiting_fill: "Ordem simulada aberta; aguardando liquidez compatível no livro.",
-    partially_filled: `Ordem simulada preenchida parcialmente: ${order.filledShares} de ${order.requestedShares} shares.`,
+    awaiting_fill: order.waitingForPosition
+      ? "Ordem de venda aguardando shares disponíveis na carteira virtual."
+      : "Ordem simulada aberta; aguardando liquidez compatível no livro.",
+    partially_filled: order.waitingForPosition
+      ? `Ordem simulada preenchida parcialmente: ${order.filledShares} de ${order.requestedShares} shares; aguardando mais shares para vender.`
+      : `Ordem simulada preenchida parcialmente: ${order.filledShares} de ${order.requestedShares} shares.`,
     filled: `Ordem simulada preenchida: ${order.filledShares} shares.`,
     cancelled: `Ordem simulada cancelada após preencher ${order.filledShares} de ${order.requestedShares} shares.`,
-    failed: order.failureReason || "Ordem simulada falhou."
+    failed: order.failureReason || "Ordem simulada falhou.",
+    expired: `Mercado encerrado; ordem fechada após preencher ${order.filledShares} de ${order.requestedShares} shares.`
   };
   await navigator.locks.request("polymakr-rules-storage", async () => {
     const stored = await chrome.storage.local.get([ARCHIVE_KEY, executionStorageKey(order.marketKey)]);
@@ -645,7 +820,15 @@ function renderSimulation() {
     simulationMetricsElement.append(metric);
   }
 
-  simulationStatusElement.textContent = `${simulationStatus} Os valores são estimativas brutas; sem taxas ou posição na fila.`;
+  const unpricedExpiredPositions = positions.filter((position) =>
+    position.marketExpiredAt
+    && ![position.lastBidPrice, position.markPrice].some((price) =>
+      Number.isFinite(price) && price > 0 && price < 1
+    )
+  ).length;
+  simulationStatusElement.textContent = `${simulationStatus}${unpricedExpiredPositions
+    ? ` Há ${unpricedExpiredPositions} posição(ões) de mercado encerrado sem bid salvo; não foi possível liquidá-las.`
+    : ""} Os valores são estimativas brutas; sem taxas ou posição na fila.`;
   setSimulationCount(".simulation-positions-count", positions.length);
   setSimulationCount(".simulation-orders-count", pendingOrders.length);
   setSimulationCount(".simulation-history-count", historicalOrders.length + simulationLedger.length);
@@ -729,7 +912,9 @@ function createSimulationStatus(status) {
     partially_filled: "Parcial",
     filled: "Preenchida",
     cancelled: "Cancelada",
-    failed: "Falhou"
+    failed: "Falhou",
+    expired: "Expirada",
+    awaiting_position: "Aguardando shares"
   }[status] || status;
   return badge;
 }
@@ -814,7 +999,14 @@ function createSimulationOrderRow(order, action) {
     className: `simulation-side ${order.side}`
   });
   appendSimulationCell(row, createSimulationOutcome(order.outcome));
-  appendSimulationCell(row, createSimulationStatus(order.status));
+  const statusCell = appendSimulationCell(row, createSimulationStatus(
+    order.waitingForPosition ? "awaiting_position" : order.status
+  ));
+  if (order.expiredAt) {
+    statusCell.title = "O mercado encerrou antes do preenchimento total; a parte restante foi fechada.";
+  } else if (order.waitingForPosition) {
+    statusCell.title = "A ordem permanece aberta sem vender a descoberto e será processada quando houver shares.";
+  }
   appendSimulationCell(row, `${Number(order.filledShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} / ${Number(order.requestedShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`, {
     className: "simulation-numeric"
   });
@@ -844,7 +1036,7 @@ function createSimulationOrderRow(order, action) {
 }
 
 function isSimulationOrderHistoryStatus(status) {
-  return ["filled", "cancelled", "failed"].includes(status);
+  return ["filled", "cancelled", "failed", "expired"].includes(status);
 }
 
 async function deleteSimulationOrderRecord(orderId) {
@@ -914,9 +1106,15 @@ function renderSimulationFills() {
     const row = document.createElement("tr");
     appendSimulationCell(row, new Date(fill.createdAt).toLocaleString("pt-BR"));
     appendSimulationCell(row, fill.marketTitle, { title: fill.marketTitle });
-    appendSimulationCell(row, fill.side === "buy" ? "Comprar" : "Vender", {
+    const sideLabel = fill.settlementMethod === "last_bid"
+      ? "Liquidação"
+      : fill.side === "buy" ? "Comprar" : "Vender";
+    const sideCell = appendSimulationCell(row, sideLabel, {
       className: `simulation-side ${fill.side}`
     });
+    if (fill.settlementMethod === "last_bid") {
+      sideCell.title = "Posição encerrada pelo último bid observado no vencimento do mercado.";
+    }
     appendSimulationCell(row, createSimulationOutcome(fill.outcome));
     appendSimulationCell(row, Number(fill.shares).toLocaleString("pt-BR", { maximumFractionDigits: 2 }), { className: "simulation-numeric" });
     appendSimulationCell(row, formatSimulationCents(fill.price), { className: "simulation-numeric" });

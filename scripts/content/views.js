@@ -92,6 +92,7 @@ function renderArchive() {
     completed: "Concluída",
     failed: "Falhou",
     cancelled: "Cancelada",
+    expired: "Expirada",
     submitted_untracked: "Enviada — sem acompanhamento"
   };
   for (const entry of sortedArchive) {

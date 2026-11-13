@@ -214,6 +214,7 @@ shadow.innerHTML = `
     .simulation-state.filled { background: #e4f5ea; color: #087c3b; }
     .simulation-state.cancelled { background: #f1f3f1; color: #657168; }
     .simulation-state.failed { background: #fbe9e7; color: #a33b2e; }
+    .simulation-state.expired, .simulation-state.awaiting_position { background: #e8efff; color: #3156a8; }
     .simulation-actions { display: inline-flex; align-items: center; gap: 8px; }
     .simulation-cancel { padding: 4px 7px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
     .simulation-delete-history { padding: 4px 7px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
