@@ -1000,7 +1000,9 @@ function createSimulationOrderRow(order, action) {
   });
   appendSimulationCell(row, createSimulationOutcome(order.outcome));
   const statusCell = appendSimulationCell(row, createSimulationStatus(
-    order.waitingForPosition ? "awaiting_position" : order.status
+    order.waitingForPosition && ["open", "partially_filled"].includes(order.status)
+      ? "awaiting_position"
+      : order.status
   ));
   if (order.expiredAt) {
     statusCell.title = "O mercado encerrou antes do preenchimento total; a parte restante foi fechada.";
