@@ -188,6 +188,10 @@ shadow.innerHTML = `
     .simulation-state.failed { background: #fbe9e7; color: #a33b2e; }
     .simulation-actions { display: inline-flex; align-items: center; gap: 8px; }
     .simulation-cancel { padding: 4px 7px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
+    .simulation-delete-history { padding: 4px 7px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
+    .simulation-clear-history { min-height: 28px; padding: 5px 8px; border: 1px solid #f0d7d4; border-radius: 6px; background: #fff; color: #a33b2e; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+    .simulation-clear-history:disabled { cursor: not-allowed; opacity: .5; }
+    .simulation-history-note { margin: 0; color: #78827b; font-size: 10px; }
     .simulation-empty-cell { padding: 20px !important; color: #78827b !important; text-align: center; white-space: normal !important; }
     @media (max-width: 700px) {
       .simulation-overview { grid-template-columns: 1fr; }
@@ -309,8 +313,16 @@ shadow.innerHTML = `
         <div class="simulation-positions"></div>
       </section>
       <section class="simulation-section">
-        <div class="simulation-section-heading"><h3>Ordens</h3><span class="simulation-orders-count simulation-section-count">0</span></div>
+        <div class="simulation-section-heading"><h3>Ordens abertas</h3><span class="simulation-orders-count simulation-section-count">0</span></div>
         <div class="simulation-orders"></div>
+      </section>
+      <section class="simulation-section">
+        <div class="simulation-section-heading">
+          <div class="simulation-section-heading"><h3>Histórico de ordens</h3><span class="simulation-order-history-count simulation-section-count">0</span></div>
+          <button class="simulation-clear-history" type="button" disabled>Limpar histórico</button>
+        </div>
+        <p class="simulation-history-note">Apagar registros não altera o saldo, as posições ou os preenchimentos.</p>
+        <div class="simulation-order-history"></div>
       </section>
       <section class="simulation-section">
         <div class="simulation-section-heading"><h3>Atividade recente</h3><span class="simulation-fills-count simulation-section-count">0</span></div>
@@ -355,7 +367,9 @@ const simulationMetricsElement = shadow.querySelector(".simulation-metrics");
 const simulationStatusElement = shadow.querySelector(".simulation-status");
 const simulationPositionsElement = shadow.querySelector(".simulation-positions");
 const simulationOrdersElement = shadow.querySelector(".simulation-orders");
+const simulationOrderHistoryElement = shadow.querySelector(".simulation-order-history");
 const simulationFillsElement = shadow.querySelector(".simulation-fills");
+const simulationClearHistoryButton = shadow.querySelector(".simulation-clear-history");
 const archiveSelectAllInput = shadow.querySelector(".archive-select-all-input");
 const archiveDeleteSelectedButton = shadow.querySelector(".archive-delete-selected");
 const archiveClearAllButton = shadow.querySelector(".archive-clear-all");
@@ -402,6 +416,7 @@ let scanTimer;
 let mutationScanScheduled = false;
 
 shadow.querySelector(".close").addEventListener("click", togglePanel);
+simulationClearHistoryButton.addEventListener("click", clearSimulationOrderHistory);
 backdrop.addEventListener("click", togglePanel);
 shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));

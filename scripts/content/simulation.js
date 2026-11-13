@@ -507,11 +507,13 @@ function renderSimulation() {
   simulationMetricsElement.replaceChildren();
   simulationPositionsElement.replaceChildren();
   simulationOrdersElement.replaceChildren();
+  simulationOrderHistoryElement.replaceChildren();
   simulationFillsElement.replaceChildren();
 
   const pendingOrders = simulationOrders.filter((order) =>
     ["open", "partially_filled"].includes(order.status)
   );
+  const historicalOrders = simulationOrders.filter((order) => isSimulationOrderHistoryStatus(order.status));
   const reservedCash = pendingOrders
     .filter((order) => order.side === "buy")
     .reduce((total, order) => total + order.remainingShares * order.limitCents / 100, 0);
@@ -572,10 +574,13 @@ function renderSimulation() {
 
   simulationStatusElement.textContent = `${simulationStatus} Os valores são estimativas brutas; sem taxas ou posição na fila.`;
   setSimulationCount(".simulation-positions-count", positions.length);
-  setSimulationCount(".simulation-orders-count", simulationOrders.length);
+  setSimulationCount(".simulation-orders-count", pendingOrders.length);
+  setSimulationCount(".simulation-order-history-count", historicalOrders.length);
   setSimulationCount(".simulation-fills-count", simulationLedger.length);
+  simulationClearHistoryButton.disabled = historicalOrders.length === 0;
   renderSimulationPositions(positions);
-  renderSimulationOrders();
+  renderSimulationOrders(pendingOrders);
+  renderSimulationOrderHistory(historicalOrders);
   renderSimulationFills();
 }
 
@@ -689,8 +694,8 @@ function renderSimulationPositions(positions) {
   simulationPositionsElement.replaceChildren(table.wrapper);
 }
 
-function renderSimulationOrders() {
-  const sortedOrders = [...simulationOrders].sort((left, right) => right.createdAt - left.createdAt);
+function renderSimulationOrders(orders) {
+  const sortedOrders = [...orders].sort((left, right) => right.createdAt - left.createdAt);
   const table = createSimulationTable([
     { label: "Mercado" },
     { label: "Lado" },
@@ -704,33 +709,119 @@ function renderSimulationOrders() {
   ], "Nenhuma ordem simulada.");
   if (sortedOrders.length === 0) appendSimulationTableEmpty(table, "Nenhuma ordem simulada.");
   for (const order of sortedOrders) {
-    const row = document.createElement("tr");
-    appendSimulationCell(row, order.marketTitle, { title: order.marketTitle });
-    appendSimulationCell(row, order.side === "buy" ? "Comprar" : "Vender", {
-      className: `simulation-side ${order.side}`
-    });
-    appendSimulationCell(row, createSimulationOutcome(order.outcome));
-    appendSimulationCell(row, createSimulationStatus(order.status));
-    appendSimulationCell(row, `${Number(order.filledShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} / ${Number(order.requestedShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`, {
-      className: "simulation-numeric"
-    });
-    appendSimulationCell(row, formatSimulationCents(order.limitCents / 100), { className: "simulation-numeric" });
-    appendSimulationCell(row, order.filledShares ? formatSimulationCents(order.averageFillPrice) : "—", { className: "simulation-numeric" });
-    appendSimulationCell(row, new Date(order.updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
-    const actions = document.createElement("span");
-    actions.className = "simulation-actions";
-    if (["open", "partially_filled"].includes(order.status)) {
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.className = "simulation-cancel";
-      cancel.textContent = "Cancelar";
-      cancel.addEventListener("click", () => cancelSimulationOrder(order.id));
-      actions.append(cancel);
-    }
-    appendSimulationCell(row, actions);
-    table.body.append(row);
+    table.body.append(createSimulationOrderRow(order, "cancel"));
   }
   simulationOrdersElement.replaceChildren(table.wrapper);
+}
+
+function renderSimulationOrderHistory(orders) {
+  const sortedOrders = [...orders].sort((left, right) => right.updatedAt - left.updatedAt);
+  const table = createSimulationTable([
+    { label: "Mercado" },
+    { label: "Lado" },
+    { label: "Resultado" },
+    { label: "Status" },
+    { label: "Preenchido", numeric: true },
+    { label: "Preço limite", numeric: true },
+    { label: "Preço médio", numeric: true },
+    { label: "Atualizada" },
+    { label: "" }
+  ], "Nenhuma ordem no histórico.");
+  if (sortedOrders.length === 0) appendSimulationTableEmpty(table, "Nenhuma ordem no histórico.");
+  for (const order of sortedOrders) {
+    table.body.append(createSimulationOrderRow(order, "delete"));
+  }
+  simulationOrderHistoryElement.replaceChildren(table.wrapper);
+}
+
+function createSimulationOrderRow(order, action) {
+  const row = document.createElement("tr");
+  appendSimulationCell(row, order.marketTitle, { title: order.marketTitle });
+  appendSimulationCell(row, order.side === "buy" ? "Comprar" : "Vender", {
+    className: `simulation-side ${order.side}`
+  });
+  appendSimulationCell(row, createSimulationOutcome(order.outcome));
+  appendSimulationCell(row, createSimulationStatus(order.status));
+  appendSimulationCell(row, `${Number(order.filledShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} / ${Number(order.requestedShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`, {
+    className: "simulation-numeric"
+  });
+  appendSimulationCell(row, formatSimulationCents(order.limitCents / 100), { className: "simulation-numeric" });
+  appendSimulationCell(row, order.filledShares ? formatSimulationCents(order.averageFillPrice) : "—", { className: "simulation-numeric" });
+  appendSimulationCell(row, new Date(order.updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  const actions = document.createElement("span");
+  actions.className = "simulation-actions";
+  if (action === "cancel") {
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "simulation-cancel";
+    cancel.textContent = "Cancelar";
+    cancel.addEventListener("click", () => cancelSimulationOrder(order.id));
+    actions.append(cancel);
+  } else {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "simulation-delete-history";
+    remove.textContent = "Apagar";
+    remove.setAttribute("aria-label", `Apagar registro da ordem de ${order.side === "buy" ? "compra" : "venda"} ${order.outcome}`);
+    remove.addEventListener("click", () => deleteSimulationOrderRecord(order.id));
+    actions.append(remove);
+  }
+  appendSimulationCell(row, actions);
+  return row;
+}
+
+function isSimulationOrderHistoryStatus(status) {
+  return ["filled", "cancelled", "failed"].includes(status);
+}
+
+async function deleteSimulationOrderRecord(orderId) {
+  if (!window.confirm("Apagar o registro desta ordem? Os preenchimentos e os dados da carteira serão mantidos.")) return;
+  try {
+    await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
+      const { account, orders, ledger } = await readSimulationState();
+      const target = orders.find((item) => item.id === orderId);
+      if (!target || !isSimulationOrderHistoryStatus(target.status)) {
+        throw new Error("Somente ordens encerradas podem ser apagadas do histórico.");
+      }
+      const nextOrders = orders.filter((item) => item.id !== orderId);
+      await chrome.storage.local.set({
+        [SIMULATION_ACCOUNT_KEY]: account,
+        [SIMULATION_ORDERS_KEY]: nextOrders,
+        [SIMULATION_LEDGER_KEY]: ledger
+      });
+      simulationAccount = account;
+      simulationOrders = nextOrders;
+      simulationLedger = ledger;
+    });
+    simulationStatus = "Registro da ordem apagado; carteira e preenchimentos foram mantidos.";
+    renderSimulation();
+  } catch (error) {
+    showToast("Não foi possível apagar o registro da ordem", error.message || String(error), "error");
+  }
+}
+
+async function clearSimulationOrderHistory() {
+  const historicalCount = simulationOrders.filter((order) => isSimulationOrderHistoryStatus(order.status)).length;
+  if (historicalCount === 0
+    || !window.confirm(`Apagar os registros de ${historicalCount} ordens encerradas? Os preenchimentos e os dados da carteira serão mantidos.`)) return;
+  try {
+    await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
+      const { account, orders, ledger } = await readSimulationState();
+      const nextOrders = orders.filter((order) => !isSimulationOrderHistoryStatus(order.status));
+      await chrome.storage.local.set({
+        [SIMULATION_ACCOUNT_KEY]: account,
+        [SIMULATION_ORDERS_KEY]: nextOrders,
+        [SIMULATION_LEDGER_KEY]: ledger
+      });
+      simulationAccount = account;
+      simulationOrders = nextOrders;
+      simulationLedger = ledger;
+    });
+    simulationStatus = "Histórico de ordens apagado; carteira e preenchimentos foram mantidos.";
+    renderSimulation();
+  } catch (error) {
+    showToast("Não foi possível limpar o histórico de ordens", error.message || String(error), "error");
+  }
 }
 
 function renderSimulationFills() {
