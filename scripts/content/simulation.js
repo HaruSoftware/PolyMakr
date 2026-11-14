@@ -698,18 +698,7 @@ async function updateSimulationArchive(order) {
     expired: "expired"
   }[order.status];
   if (!archiveStatus) return;
-  const statusMessages = {
-    awaiting_fill: order.waitingForPosition
-      ? "Ordem de venda aguardando shares disponíveis na carteira virtual."
-      : "Ordem simulada aberta; aguardando liquidez compatível no livro.",
-    partially_filled: order.waitingForPosition
-      ? `Ordem simulada preenchida parcialmente: ${order.filledShares} de ${order.requestedShares} shares; aguardando mais shares para vender.`
-      : `Ordem simulada preenchida parcialmente: ${order.filledShares} de ${order.requestedShares} shares.`,
-    filled: `Ordem simulada preenchida: ${order.filledShares} shares.`,
-    cancelled: `Ordem simulada cancelada após preencher ${order.filledShares} de ${order.requestedShares} shares.`,
-    failed: order.failureReason || "Ordem simulada falhou.",
-    expired: `Mercado encerrado; ordem fechada após preencher ${order.filledShares} de ${order.requestedShares} shares.`
-  };
+  const message = simulationOrderMessage(order);
   await navigator.locks.request("polymakr-rules-storage", async () => {
     const stored = await chrome.storage.local.get([ARCHIVE_KEY, executionStorageKey(order.marketKey)]);
     const archive = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
@@ -720,7 +709,7 @@ async function updateSimulationArchive(order) {
         ? {
           ...item,
           status: archiveStatus,
-          message: statusMessages[archiveStatus],
+          message,
           simulationOrderId: order.id,
           matchedShares: order.filledShares,
           averageFillPrice: order.averageFillPrice,
@@ -738,7 +727,7 @@ async function updateSimulationArchive(order) {
         [order.ruleId]: {
           ...states[order.ruleId],
           status: archiveStatus,
-          message: statusMessages[archiveStatus],
+          message,
           simulationOrderId: order.id,
           matchedShares: order.filledShares,
           updatedAt: order.updatedAt
@@ -747,6 +736,40 @@ async function updateSimulationArchive(order) {
     }
     if (Object.keys(changes).length) await chrome.storage.local.set(changes);
   });
+}
+
+function simulationOrderMessage(order) {
+  const filledShares = Number(order.filledShares) || 0;
+  const requestedShares = Number(order.requestedShares) || 0;
+  const remainingShares = Number(order.remainingShares) || 0;
+  const executedValue = filledShares * (Number(order.averageFillPrice) || 0);
+  const shareCount = (value) => Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  const executionSummary = `${shareCount(filledShares)} de ${shareCount(requestedShares)} shares preenchidas; total ${order.side === "buy" ? "debitado" : "creditado"} de ${formatSimulationCurrency(executedValue)}.`;
+
+  if (order.status === "failed") {
+    return order.failureReason || "Ordem simulada falhou.";
+  }
+  if (order.status === "cancelled") {
+    return `Ordem cancelada após preencher ${executionSummary}`;
+  }
+  if (order.status === "expired") {
+    return `Mercado encerrado; ordem fechada após preencher ${executionSummary}`;
+  }
+  if (order.status === "filled") {
+    return `${order.side === "buy" ? "Compra" : "Venda"} preenchida: ${executionSummary}`;
+  }
+  if (order.status === "partially_filled") {
+    return `Ordem parcialmente preenchida: ${executionSummary} Restam ${shareCount(remainingShares)} shares.`
+      + (order.waitingForPosition ? " A venda aguarda mais shares na carteira." : "");
+  }
+  if (order.waitingForPosition) {
+    return "Ordem de venda aberta, sem shares vendidas: aguardando shares disponíveis na carteira virtual.";
+  }
+  if (order.side === "buy") {
+    const reservedCash = remainingShares * Number(order.limitCents) / 100;
+    return `Ordem de compra aberta: ainda sem shares adquiridas e sem débito por preenchimento. ${formatSimulationCurrency(reservedCash)} reservados; aguardando liquidez compatível.`;
+  }
+  return "Ordem de venda aberta: ainda sem shares vendidas; aguardando liquidez compatível no livro.";
 }
 
 function renderSimulation() {
@@ -799,7 +822,7 @@ function renderSimulation() {
   simulationEquityElement.append(initialBalance);
 
   for (const metricData of [
-    { label: "Saldo disponível", value: formatSimulationCurrency(availableCash) },
+    { label: "Disponível após reservas", value: formatSimulationCurrency(availableCash) },
     { label: "P&L realizado", value: formatSimulationCurrency(simulationAccount.realizedPnl), pnl: simulationAccount.realizedPnl },
     {
       label: "P&L não realizado",
@@ -960,6 +983,7 @@ function renderSimulationOrders(orders) {
     { label: "Resultado" },
     { label: "Status" },
     { label: "Preenchido", numeric: true },
+    { label: "Valor executado", numeric: true },
     { label: "Preço limite", numeric: true },
     { label: "Preço médio", numeric: true },
     { label: "Atualizada" },
@@ -980,6 +1004,7 @@ function renderSimulationOrderHistory(orders) {
     { label: "Resultado" },
     { label: "Status" },
     { label: "Preenchido", numeric: true },
+    { label: "Valor executado", numeric: true },
     { label: "Preço limite", numeric: true },
     { label: "Preço médio", numeric: true },
     { label: "Atualizada" },
@@ -1008,9 +1033,18 @@ function createSimulationOrderRow(order, action) {
     statusCell.title = "O mercado encerrou antes do preenchimento total; a parte restante foi fechada.";
   } else if (order.waitingForPosition) {
     statusCell.title = "A ordem permanece aberta sem vender a descoberto e será processada quando houver shares.";
+  } else if (order.status === "open" && order.filledShares === 0) {
+    statusCell.title = order.side === "buy"
+      ? "Ordem ainda não preenchida: nenhuma share foi comprada. O valor está reservado, não debitado."
+      : "Ordem ainda não preenchida: nenhuma share foi vendida.";
   }
   appendSimulationCell(row, `${Number(order.filledShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} / ${Number(order.requestedShares).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`, {
     className: "simulation-numeric"
+  });
+  const executedValue = (Number(order.filledShares) || 0) * (Number(order.averageFillPrice) || 0);
+  appendSimulationCell(row, formatSimulationCurrency(executedValue), {
+    className: "simulation-numeric",
+    title: order.side === "buy" ? "Valor efetivamente debitado pelos fills." : "Valor efetivamente creditado pelos fills."
   });
   appendSimulationCell(row, formatSimulationCents(order.limitCents / 100), { className: "simulation-numeric" });
   appendSimulationCell(row, order.filledShares ? formatSimulationCents(order.averageFillPrice) : "—", { className: "simulation-numeric" });

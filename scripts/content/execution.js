@@ -275,20 +275,7 @@ async function processQueuedRulesLocked(marketKey, states) {
           ? "filled"
           : simulationOrder.status === "partially_filled" ? "partially_filled"
             : simulationOrder.status === "failed" ? "failed" : "awaiting_fill";
-        let message;
-        if (simulationOrder.waitingForPosition) {
-          message = simulationOrder.filledShares > 0
-            ? `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares; aguardando mais shares para vender.`
-            : "Ordem de venda simulada aguardando shares disponíveis na carteira virtual.";
-        } else if (simulationOrder.status === "filled") {
-          message = `Ordem simulada preenchida: ${simulationOrder.filledShares} shares.`;
-        } else if (simulationOrder.status === "partially_filled") {
-          message = `Ordem simulada preenchida parcialmente: ${simulationOrder.filledShares} de ${simulationOrder.requestedShares} shares.`;
-        } else if (simulationOrder.status === "failed") {
-          message = `Ordem simulada falhou: ${simulationOrder.failureReason}`;
-        } else {
-          message = "Ordem simulada aberta; aguardando liquidez compatível no livro.";
-        }
+        const message = simulationOrderMessage(simulationOrder);
         states[rule.id] = {
           ...states[rule.id],
           status,
@@ -303,7 +290,10 @@ async function processQueuedRulesLocked(marketKey, states) {
           matchedShares: simulationOrder.filledShares,
           averageFillPrice: simulationOrder.averageFillPrice
         });
-        sendRuleNotification(`${summary} ${message}`, rule.side === "buy" ? "Comprar" : "Vender");
+        const notificationType = simulationOrder.status === "filled"
+          ? "success"
+          : simulationOrder.status === "failed" ? "error" : "warning";
+        sendRuleNotification(`${summary} ${message}`, rule.side === "buy" ? "Comprar" : "Vender", notificationType);
         continue;
       } else if (rule.mode === "auto_limit") {
         trackingDetails = await executeLimitOrder(rule, quote);
@@ -762,9 +752,9 @@ function waitForPageUpdate() {
   return new Promise((resolve) => window.setTimeout(resolve, 150));
 }
 
-function sendRuleNotification(message, action) {
+function sendRuleNotification(message, action, notificationType) {
   const isFailure = /falh|não foi concluída|não foi conclu[ií]da/i.test(action) || /não foi concluída|não foi executada/i.test(message);
-  showToast(action, message, isFailure ? "error" : "success", 9000);
+  showToast(action, message, notificationType || (isFailure ? "error" : "success"), 9000);
   chrome.runtime.sendMessage({
     type: "POLYMAKR_NOTIFICATION",
     title: `Regra PolyMakr: ${action.toLowerCase()}`,
