@@ -335,7 +335,7 @@ shadow.innerHTML = `
     </div>
     <div class="view" data-panel="simulation" role="tabpanel" hidden>
       <div class="section-heading"><h2>Simulação ao vivo</h2><span class="count-chip">Carteira virtual</span></div>
-      <p class="simulation-note">Ordem aberta não significa compra ou venda: só um fill altera shares e caixa. Compras abertas reservam saldo; o débito ocorre conforme os fills, e vendas reduzem shares e creditam o valor preenchido.</p>
+      <p class="simulation-note">Ordem aberta não significa compra ou venda: só um fill altera shares e caixa. Compras abertas reservam saldo; o débito ocorre conforme os fills. Use Fechar posição para vender ao melhor bid e realizar lucro ou prejuízo.</p>
       <div class="simulation-overview">
         <div class="simulation-equity"></div>
         <div class="simulation-metrics"></div>

@@ -315,6 +315,12 @@ function getWorkingBook(account, assetId, book) {
 
 function applyBookToSimulationOrder(order, book, account, ledger) {
   if (order.side === "sell" && (Number(account.positions[order.assetId]?.shares) || 0) <= 1e-8) {
+    if (order.manualClose) {
+      order.status = "cancelled";
+      order.failureReason = "A posição foi fechada antes de o restante da ordem ser preenchido.";
+      order.updatedAt = Date.now();
+      return;
+    }
     order.waitingForPosition = true;
     order.status = order.filledShares > 1e-8 ? "partially_filled" : "open";
     order.updatedAt = Date.now();
@@ -356,6 +362,7 @@ function applyBookToSimulationOrder(order, book, account, ledger) {
       assetId: order.assetId,
       outcome: order.outcome,
       side: order.side,
+      manualClose: Boolean(order.manualClose),
       price: fill.price,
       shares: fill.shares,
       notional: fill.notional,
@@ -478,9 +485,7 @@ async function pollSimulationOrders(marketKey) {
           metadataError = error instanceof Error ? error.message : String(error);
         }
       }
-      const expired = marketData?.isClosed
-        || (Number.isFinite(marketData?.endDate) && marketData.endDate <= Date.now())
-        || hasExpiredMarketDate(state, currentMarketKey);
+      const expired = isSimulationMarketClosed(marketData);
       const tokenIds = new Set([
         ...marketOrders.map((order) => order.assetId),
         ...marketPositions.map((position) => position.assetId)
@@ -610,6 +615,10 @@ function hasExpiredMarketDate(state, marketKey) {
   return Number.isFinite(endDate) && endDate <= Date.now();
 }
 
+function isSimulationMarketClosed(marketData) {
+  return marketData?.isClosed === true;
+}
+
 function expireSimulationMarket(account, orders, ledger, marketKey) {
   const now = Date.now();
   const expiredOrders = orders.filter((order) => order.marketKey === marketKey
@@ -688,6 +697,113 @@ async function cancelSimulationOrder(orderId) {
   }
 }
 
+async function closeSimulationPosition(assetId) {
+  try {
+    const startingState = await readSimulationState();
+    const startingPosition = startingState.account.positions[assetId];
+    if (!startingPosition) {
+      showToast("Posição não encontrada", "Ela pode já ter sido fechada ou liquidada.", "warning");
+      return;
+    }
+    const shares = Number(startingPosition.shares);
+    if (!window.confirm(`Fechar ${shares.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} shares ao melhor bid disponível? O preenchimento pode ser parcial se não houver liquidez suficiente.`)) {
+      return;
+    }
+
+    let marketData = null;
+    if (startingPosition.marketSlug && startingPosition.marketRoute) {
+      marketData = await resolveMarketTradingData(startingPosition);
+      if (marketData.isActive === false || isSimulationMarketClosed(marketData)) {
+        throw new Error("Este mercado não está ativo para fechar a posição.");
+      }
+    }
+    const book = await fetchSimulationBook(assetId);
+    if (Date.now() - book.fetchedAt > SIMULATION_MAX_BOOK_AGE) {
+      throw new Error("O livro de ofertas ficou desatualizado; a posição não foi fechada.");
+    }
+
+    const order = await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
+      const { account, orders, ledger } = await readSimulationState();
+      if (account.generation !== startingState.account.generation) {
+        throw new Error("A carteira foi reiniciada enquanto o fechamento era preparado; tente novamente.");
+      }
+      const position = account.positions[assetId];
+      if (!position || position.marketExpiredAt) {
+        throw new Error("A posição não está mais disponível para fechamento.");
+      }
+      if (orders.some((item) => item.assetId === assetId && item.side === "sell"
+        && ["open", "partially_filled"].includes(item.status))) {
+        throw new Error("Cancele primeiro as outras ordens de venda abertas desta posição.");
+      }
+
+      account.bookLiquidity = account.bookLiquidity || {};
+      const closeOrder = {
+        id: crypto.randomUUID(),
+        ruleId: null,
+        marketKey: position.marketKey,
+        marketTitle: position.marketTitle,
+        conditionId: marketData?.conditionId || position.conditionId,
+        assetId,
+        marketSlug: position.marketSlug,
+        marketRoute: position.marketRoute,
+        marketEndDate: marketData?.endDate || position.marketEndDate,
+        outcome: position.outcome,
+        side: "sell",
+        limitCents: 1,
+        requestedShares: Number(position.shares),
+        remainingShares: Number(position.shares),
+        filledShares: 0,
+        averageFillPrice: 0,
+        fills: [],
+        status: "open",
+        manualClose: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      const mutableBook = getWorkingBook(account, assetId, book);
+      applyBookToSimulationOrder(closeOrder, mutableBook, account, ledger);
+      if (closeOrder.remainingShares > 1e-8) {
+        closeOrder.status = "cancelled";
+        closeOrder.remainderCancelled = true;
+        closeOrder.updatedAt = Date.now();
+      }
+      account.bookLiquidity[assetId] = mutableBook;
+      const remainingPosition = account.positions[assetId];
+      const bestBid = book.bids[0]?.price;
+      if (remainingPosition && Number.isFinite(bestBid)) {
+        remainingPosition.markPrice = bestBid;
+        remainingPosition.lastBidPrice = bestBid;
+        remainingPosition.lastBidAt = book.fetchedAt;
+        remainingPosition.updatedAt = Date.now();
+      }
+      const nextOrders = [...orders, closeOrder];
+      await chrome.storage.local.set({
+        [SIMULATION_ACCOUNT_KEY]: account,
+        [SIMULATION_ORDERS_KEY]: nextOrders,
+        [SIMULATION_LEDGER_KEY]: ledger
+      });
+      simulationAccount = account;
+      simulationOrders = nextOrders;
+      simulationLedger = ledger;
+      return closeOrder;
+    });
+
+    simulationStatus = order.status === "filled"
+      ? "Posição fechada ao melhor bid disponível."
+      : order.filledShares > 0
+        ? "Fechamento parcial; as shares restantes continuam na posição."
+        : "Sem liquidez de compra disponível; a posição continua aberta.";
+    renderSimulation();
+    showToast(
+      order.status === "filled" ? "Posição fechada" : "Posição continua aberta",
+      simulationOrderMessage(order),
+      order.status === "filled" ? "success" : "warning"
+    );
+  } catch (error) {
+    showToast("Não foi possível fechar a posição", error.message || String(error), "error");
+  }
+}
+
 async function updateSimulationArchive(order) {
   const archiveStatus = {
     open: "awaiting_fill",
@@ -697,7 +813,7 @@ async function updateSimulationArchive(order) {
     failed: "failed",
     expired: "expired"
   }[order.status];
-  if (!archiveStatus) return;
+  if (!archiveStatus || !order.ruleId) return;
   const message = simulationOrderMessage(order);
   await navigator.locks.request("polymakr-rules-storage", async () => {
     const stored = await chrome.storage.local.get([ARCHIVE_KEY, executionStorageKey(order.marketKey)]);
@@ -750,16 +866,22 @@ function simulationOrderMessage(order) {
     return order.failureReason || "Ordem simulada falhou.";
   }
   if (order.status === "cancelled") {
-    return `Ordem cancelada após preencher ${executionSummary}`;
+    if (order.manualClose && order.remainderCancelled) {
+      const remainder = `${shareCount(remainingShares)} shares permanecem na posição.`;
+      return order.filledShares > 0
+        ? `Fechamento parcial: ${executionSummary} ${remainder}`
+        : `Nenhuma share vendida por falta de liquidez. ${remainder}`;
+    }
+    return order.failureReason || `Ordem cancelada após preencher ${executionSummary}`;
   }
   if (order.status === "expired") {
     return `Mercado encerrado; ordem fechada após preencher ${executionSummary}`;
   }
   if (order.status === "filled") {
-    return `${order.side === "buy" ? "Compra" : "Venda"} preenchida: ${executionSummary}`;
+    return `${order.manualClose ? "Posição fechada" : order.side === "buy" ? "Compra" : "Venda"}: ${executionSummary}`;
   }
   if (order.status === "partially_filled") {
-    return `Ordem parcialmente preenchida: ${executionSummary} Restam ${shareCount(remainingShares)} shares.`
+    return `${order.manualClose ? "Posição parcialmente fechada" : "Ordem parcialmente preenchida"}: ${executionSummary} Restam ${shareCount(remainingShares)} shares.`
       + (order.waitingForPosition ? " A venda aguarda mais shares na carteira." : "");
   }
   if (order.waitingForPosition) {
@@ -768,6 +890,9 @@ function simulationOrderMessage(order) {
   if (order.side === "buy") {
     const reservedCash = remainingShares * Number(order.limitCents) / 100;
     return `Ordem de compra aberta: ainda sem shares adquiridas e sem débito por preenchimento. ${formatSimulationCurrency(reservedCash)} reservados; aguardando liquidez compatível.`;
+  }
+  if (order.manualClose) {
+    return "Fechamento a mercado aberto: aguardando bids disponíveis; nenhuma share foi vendida ainda.";
   }
   return "Ordem de venda aberta: ainda sem shares vendidas; aguardando liquidez compatível no livro.";
 }
@@ -950,7 +1075,8 @@ function renderSimulationPositions(positions) {
     { label: "Preço médio", numeric: true },
     { label: "Bid", numeric: true },
     { label: "Valor", numeric: true },
-    { label: "P&L / retorno", numeric: true }
+    { label: "P&L / retorno", numeric: true },
+    { label: "Ação" }
   ], "Nenhuma posição aberta.");
   if (positions.length === 0) appendSimulationTableEmpty(table, "Nenhuma posição aberta.");
   for (const position of positions) {
@@ -970,6 +1096,19 @@ function renderSimulationPositions(positions) {
       className: `simulation-numeric ${pnl === null ? "simulation-neutral" : simulationTone(pnl)}`
     });
     pnlCell.title = pnl === null ? "Abra o mercado correspondente para atualizar a cotação." : "P&L não realizado, marcado pelo melhor bid.";
+    const actions = document.createElement("span");
+    actions.className = "simulation-actions";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "simulation-cancel";
+    close.textContent = "Fechar posição";
+    close.disabled = Boolean(position.marketExpiredAt);
+    close.title = position.marketExpiredAt
+      ? "O mercado encerrou; a posição não pode mais ser vendida."
+      : "Vender shares ao melhor bid disponível.";
+    close.addEventListener("click", () => closeSimulationPosition(position.assetId));
+    actions.append(close);
+    appendSimulationCell(row, actions);
     table.body.append(row);
   }
   simulationPositionsElement.replaceChildren(table.wrapper);
@@ -1046,7 +1185,7 @@ function createSimulationOrderRow(order, action) {
     className: "simulation-numeric",
     title: order.side === "buy" ? "Valor efetivamente debitado pelos fills." : "Valor efetivamente creditado pelos fills."
   });
-  appendSimulationCell(row, formatSimulationCents(order.limitCents / 100), { className: "simulation-numeric" });
+  appendSimulationCell(row, order.manualClose ? "A mercado" : formatSimulationCents(order.limitCents / 100), { className: "simulation-numeric" });
   appendSimulationCell(row, order.filledShares ? formatSimulationCents(order.averageFillPrice) : "—", { className: "simulation-numeric" });
   appendSimulationCell(row, new Date(order.updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
   const actions = document.createElement("span");
@@ -1144,12 +1283,15 @@ function renderSimulationFills() {
     appendSimulationCell(row, fill.marketTitle, { title: fill.marketTitle });
     const sideLabel = fill.settlementMethod === "last_bid"
       ? "Liquidação"
+      : fill.manualClose ? "Fechar posição"
       : fill.side === "buy" ? "Comprar" : "Vender";
-    const sideCell = appendSimulationCell(row, sideLabel, {
+    const sideCell = appendSimulationCell(row,     sideLabel, {
       className: `simulation-side ${fill.side}`
     });
     if (fill.settlementMethod === "last_bid") {
       sideCell.title = "Posição encerrada pelo último bid observado no vencimento do mercado.";
+    } else if (fill.manualClose) {
+      sideCell.title = "Fechamento manual executado contra os bids disponíveis.";
     }
     appendSimulationCell(row, createSimulationOutcome(fill.outcome));
     appendSimulationCell(row, Number(fill.shares).toLocaleString("pt-BR", { maximumFractionDigits: 2 }), { className: "simulation-numeric" });
