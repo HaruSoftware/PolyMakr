@@ -982,6 +982,7 @@ function renderSimulation() {
   setSimulationCount(".simulation-history-count", historicalOrders.length + simulationLedger.length);
   setSimulationCount(".simulation-fills-count", simulationLedger.length);
   simulationClearHistoryButton.disabled = historicalOrders.length === 0;
+  simulationClearActivityButton.disabled = simulationLedger.length === 0;
   renderSimulationPositions(positions);
   renderSimulationOrders(pendingOrders);
   renderSimulationOrderHistory(historicalOrders);
@@ -1261,6 +1262,35 @@ async function clearSimulationOrderHistory() {
     renderSimulation();
   } catch (error) {
     showToast("Não foi possível limpar o histórico de ordens", error.message || String(error), "error");
+  }
+}
+
+async function clearSimulationActivity() {
+  const activityIds = new Set(simulationLedger.map((fill) => fill.id));
+  if (!activityIds.size || !window.confirm(
+    `Apagar ${activityIds.size} registro(s) da atividade recente? O saldo, as posições e as ordens serão mantidos.`
+  )) return;
+  try {
+    let clearedCount = 0;
+    await navigator.locks.request(SIMULATION_LOCK_NAME, async () => {
+      const { account, orders, ledger } = await readSimulationState();
+      const nextLedger = ledger.filter((fill) => !activityIds.has(fill.id));
+      clearedCount = ledger.length - nextLedger.length;
+      await chrome.storage.local.set({
+        [SIMULATION_ACCOUNT_KEY]: account,
+        [SIMULATION_ORDERS_KEY]: orders,
+        [SIMULATION_LEDGER_KEY]: nextLedger
+      });
+      simulationAccount = account;
+      simulationOrders = orders;
+      simulationLedger = nextLedger;
+    });
+    simulationStatus = clearedCount
+      ? "Atividade recente apagada; carteira, posições e ordens foram mantidas."
+      : "A atividade recente já havia sido limpa em outra aba.";
+    renderSimulation();
+  } catch (error) {
+    showToast("Não foi possível limpar a atividade recente", error.message || String(error), "error");
   }
 }
 
