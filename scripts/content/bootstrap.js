@@ -3,6 +3,7 @@ const RULES_KEY = "polymakr.rules";
 const FAVORITES_KEY = "polymakr.favorites";
 const ARCHIVE_KEY = "polymakr.archive";
 const WALLET_KEY = "polymakr.walletAddress";
+const CONDITIONERS_KEY = "polymakr.conditioners";
 const EXECUTION_STATE_PREFIX = "polymakr.execution.";
 const EXECUTION_SCHEMA_KEY = "polymakr.executionSchema";
 const host = document.createElement("div");
@@ -31,7 +32,7 @@ shadow.innerHTML = `
     .top strong { font-size: 15px; }
     .top small { display: block; color: #78827b; font-size: 11px; }
     .close { border: 0; background: transparent; color: #59645d; cursor: pointer; font-size: 20px; }
-    .tabs { display: grid; flex: 0 0 auto; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
+    .tabs { display: grid; flex: 0 0 auto; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 10px 16px; border-bottom: 1px solid #edf0ed; }
     .tab { padding: 8px; border: 0; border-radius: 8px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
     .tab[aria-selected="true"] { background: #e8f4ec; color: #087c3b; }
     .view { display: none; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px;
@@ -151,6 +152,23 @@ shadow.innerHTML = `
     .favorite-dialog-cancel { background: #f1f3f1; color: #435047; }
     .favorite-dialog-save { background: #e58b16; color: #fff; }
     .settings-section { display: grid; gap: 10px; max-width: 640px; margin: 0 0 16px; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
+    .conditioner-list { display: grid; gap: 10px; max-width: 760px; }
+    .conditioner-card { display: grid; gap: 8px; padding: 12px; border: 1px solid #e1e7e2; border-radius: 10px; background: #fff; color: #435047; font-size: 11px; overflow-wrap: anywhere; }
+    .conditioner-card h3, .conditioner-card p { margin: 0; }
+    .conditioner-card header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .conditioner-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .conditioner-actions button, .conditioner-add-condition { padding: 6px 9px; border: 1px solid #dfe6e0; border-radius: 7px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+    .conditioner-actions .danger { color: #a33b2e; }
+    .conditioner-status { padding: 3px 7px; border-radius: 999px; background: #e4f5ea; color: #087c3b; font-size: 9px; font-weight: 750; }
+    .conditioner-status.paused { background: #fff3d8; color: #8a5a00; }
+    .conditioner-status.ended { background: #eef1ef; color: #59645d; }
+    .conditioner-conditions { display: grid; gap: 6px; }
+    .conditioner-condition { display: grid; grid-template-columns: 1.1fr .8fr 1fr .8fr auto; gap: 6px; align-items: end; }
+    .conditioner-condition button { height: 33px; border: 1px solid #f0d7d4; border-radius: 7px; background: #fff; color: #a33b2e; cursor: pointer; }
+    .conditioner-form { max-width: 760px; margin-bottom: 18px; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
+    .conditioner-form h3 { margin: 0; font-size: 13px; }
+    .conditioner-history { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid #edf0ed; color: #657168; }
+    .conditioner-history p { font-size: 10px; }
     .settings-section h3 { margin: 0; font-size: 13px; }
     .settings-section p { margin: 0; color: #657168; font-size: 11px; }
     .settings-section .wallet-settings { margin-top: 0; }
@@ -252,6 +270,7 @@ shadow.innerHTML = `
       .view[data-panel="rules"] { padding: 12px; }
       .tabs { gap: 3px; padding: 8px 10px; }
       .tab { padding: 7px 2px; font-size: 10px; overflow-wrap: anywhere; }
+      .conditioner-condition { grid-template-columns: 1fr 1fr; }
     }
   </style>
   <div class="backdrop"></div>
@@ -265,6 +284,7 @@ shadow.innerHTML = `
       <button class="tab" type="button" role="tab" data-view="rules" aria-selected="false">Regras</button>
       <button class="tab" type="button" role="tab" data-view="archive" aria-selected="false">Registro</button>
       <button class="tab" type="button" role="tab" data-view="simulation" aria-selected="false">Simulação</button>
+      <button class="tab" type="button" role="tab" data-view="conditioners" aria-selected="false">Condicionadores</button>
       <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">Configurações</button>
     </nav>
     <div class="view active" data-panel="create" role="tabpanel">
@@ -392,6 +412,44 @@ shadow.innerHTML = `
         <button class="simulation-reset-wallet" type="button">Resetar carteira de ativos</button>
       </section>
     </div>
+    <div class="view" data-panel="conditioners" role="tabpanel" hidden>
+      <div class="section-heading"><h2>Condicionadores</h2><span class="count-chip conditioner-count">0</span></div>
+      <p class="hint">A página do mercado precisa permanecer aberta para monitoramento. Execuções reais enviam ordens limite pelo formulário do Polymarket.</p>
+      <form class="conditioner-form">
+        <h3>Novo condicionador</h3>
+        <label>Nome<input name="name" maxlength="60" required placeholder="Ex.: Comprar Up em queda"></label>
+        <label>Descrição (opcional)<input name="description" maxlength="180" placeholder="Objetivo ou contexto"></label>
+        <div class="row">
+          <label>Resultado<select name="outcome" required><option value="" selected disabled>Selecione</option><option>Up</option><option>Down</option></select></label>
+          <label>Operação<select name="side" required><option value="buy">Compra</option><option value="sell">Venda</option><option value="both">Compra e venda (definidas por condição)</option></select></label>
+        </div>
+        <label>Condições combinadas<select name="combine"><option value="and">AND — todas devem ser atendidas</option><option value="or">OR — qualquer uma pode ser atendida</option></select></label>
+        <p class="hint">A variação percentual é calculada em relação ao preço observado ao criar o condicionador.</p>
+        <div class="conditioner-conditions"></div>
+        <button class="conditioner-add-condition" type="button">Adicionar condição</button>
+        <div class="row">
+          <label>Limite de preço da ordem (¢)<input name="orderLimitCents" type="number" min="0.1" max="99.9" step="0.1" required></label>
+          <label>Compra: valor (US$) / Venda: shares<input name="amount" type="number" min="0.01" step="0.01" required></label>
+        </div>
+        <label>Venda<select name="sellAll"><option value="false">Quantidade informada</option><option value="true">Toda a posição disponível</option></select></label>
+        <label>Execução<select name="mode"><option value="paper">Simular (carteira virtual)</option><option value="auto_limit">Enviar ordem real limite</option><option value="notify">Somente notificar</option></select></label>
+        <h3>Parâmetros de segurança (limites ignorados quando vazios ou zero)</h3>
+        <div class="row">
+          <label>Não comprar abaixo de (minutos restantes)<input name="minRemainingMinutes" type="number" min="0" step="1" value="0"></label>
+          <label>Liquidez mínima (US$)<input name="minLiquidity" type="number" min="0" step="1" value="0"></label>
+        </div>
+        <div class="row">
+          <label>Spread máximo (¢)<input name="maxSpreadCents" type="number" min="0" max="100" step="0.1" value="0"></label>
+          <label>Investimento máximo (US$)<input name="maxInvestment" type="number" min="0" step="0.01" value="0"></label>
+        </div>
+        <div class="row">
+          <label>Máximo de operações<input name="maxOperations" type="number" min="1" step="1" value="1" required></label>
+          <label>Venda protetiva ao cair (%)<input name="stopLossPct" type="number" min="0" max="99" step="0.1" value="0"></label>
+        </div>
+        <button class="save-action save" type="submit">Criar condicionador</button>
+      </form>
+      <div class="conditioner-list"></div>
+    </div>
   </section>
   <div class="toast-stack" aria-live="polite" aria-relevant="additions"></div>
   <div class="favorite-dialog-backdrop" hidden>
@@ -460,6 +518,8 @@ const archiveDeleteConfirmButton = shadow.querySelector(".archive-delete-confirm
 const walletForm = shadow.querySelector(".wallet-settings");
 const walletInput = walletForm.querySelector('[name="walletAddress"]');
 const toastStack = shadow.querySelector(".toast-stack");
+const conditionerForm = shadow.querySelector(".conditioner-form");
+const conditionerListElement = shadow.querySelector(".conditioner-list");
 const favoriteDialogBackdrop = shadow.querySelector(".favorite-dialog-backdrop");
 const favoriteDialog = shadow.querySelector(".favorite-dialog");
 const favoriteDialogInput = favoriteDialog.querySelector('[name="favoriteName"]');
@@ -469,6 +529,7 @@ const formHeading = shadow.querySelector(".form-heading");
 const cancelEditButton = shadow.querySelector(".cancel-edit");
 const tradingSideGroups = new WeakSet();
 let rules = [];
+let conditioners = [];
 let favorites = [];
 let favoriteOutcomeFilter = "all";
 let archivedRules = [];
@@ -495,6 +556,7 @@ let rulesWrite = Promise.resolve();
 let favoritesWrite = Promise.resolve();
 let scanTimer;
 let mutationScanScheduled = false;
+let lastConditionerScanAt = 0;
 
 shadow.querySelector(".close").addEventListener("click", togglePanel);
 simulationClearHistoryButton.addEventListener("click", clearSimulationOrderHistory);
@@ -508,6 +570,24 @@ backdrop.addEventListener("click", togglePanel);
 shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));
 });
+conditionerForm.addEventListener("submit", saveConditionerFromForm);
+shadow.querySelector(".conditioner-add-condition").addEventListener("click", () => {
+  addConditionerConditionRow();
+});
+const conditionerSellAllInput = conditionerForm.elements.sellAll;
+const conditionerAmountInput = conditionerForm.elements.amount;
+const conditionerSideInput = conditionerForm.elements.side;
+const conditionerSellAllLabel = conditionerSellAllInput.closest("label");
+const syncConditionerAmountFields = () => {
+  const sellOnly = conditionerSideInput.value === "sell";
+  conditionerSellAllLabel.hidden = conditionerSideInput.value === "buy";
+  conditionerAmountInput.required = !sellOnly || conditionerSellAllInput.value !== "true";
+  conditionerAmountInput.placeholder = sellOnly && conditionerSellAllInput.value === "true"
+    ? "Dispensado ao vender a posição inteira" : "Valor em US$ ou shares";
+};
+conditionerSideInput.addEventListener("change", syncConditionerAmountFields);
+conditionerSellAllInput.addEventListener("change", syncConditionerAmountFields);
+syncConditionerAmountFields();
 shadow.querySelectorAll(".simulation-tab").forEach((tab, index, tabs) => {
   tab.addEventListener("click", () => selectSimulationWindow(tab.dataset.simulationTab));
   tab.addEventListener("keydown", (event) => {
@@ -583,6 +663,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     walletAddress = changes[WALLET_KEY].newValue || "";
     walletInput.value = walletAddress;
   }
+  if (changes[CONDITIONERS_KEY]) {
+    conditioners = Array.isArray(changes[CONDITIONERS_KEY].newValue)
+      ? changes[CONDITIONERS_KEY].newValue : [];
+    renderConditioners();
+  }
   if ([SIMULATION_ACCOUNT_KEY, SIMULATION_ORDERS_KEY, SIMULATION_LEDGER_KEY]
     .some((key) => changes[key])) {
     refreshSimulation().catch((error) => {
@@ -602,6 +687,7 @@ migrateMarketAgnosticStorage().then(async (stored) => {
   favorites = Array.isArray(stored[FAVORITES_KEY]) ? stored[FAVORITES_KEY] : [];
   archivedRules = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
   walletAddress = typeof stored[WALLET_KEY] === "string" ? stored[WALLET_KEY] : "";
+  conditioners = Array.isArray(stored[CONDITIONERS_KEY]) ? stored[CONDITIONERS_KEY] : [];
   walletInput.value = walletAddress;
   let migratedFavorites = false;
   rules = rules.map((rule) => {
@@ -620,6 +706,8 @@ migrateMarketAgnosticStorage().then(async (stored) => {
   });
   renderRules();
   renderArchive();
+  renderConditioners();
+  if (conditionerForm.querySelector(".conditioner-condition") === null) addConditionerConditionRow();
   try {
     await initializeSimulation();
   } catch (error) {

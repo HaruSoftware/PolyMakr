@@ -34,6 +34,7 @@
         "scripts/content/polymarket.js",
         "scripts/content/execution.js",
         "scripts/content/simulation.js",
+        "scripts/content/conditioners.js",
         "scripts/content/views.js",
         "scripts/content/bootstrap.js"
       ],

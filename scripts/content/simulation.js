@@ -164,7 +164,7 @@ async function createSimulationOrder(rule) {
     const shares = Number(rule.shares);
     const limitCents = Number(rule.orderLimitCents);
     if (!["buy", "sell"].includes(rule.side)
-      || !Number.isInteger(shares) || shares < 1
+      || !Number.isFinite(shares) || shares < 0.01
       || !Number.isFinite(limitCents) || limitCents <= 0 || limitCents >= 100) {
       throw new Error("Os valores salvos da ordem simulada são inválidos.");
     }

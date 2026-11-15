@@ -4,6 +4,7 @@ async function scan() {
   const nextMarketKey = marketKeys.size === 1 ? [...marketKeys][0] : "";
   const next = new Map((marketKeys.size === 1 ? activeQuotes : []).map((quote) => [quote.key, quote]));
   const marketChanged = nextMarketKey !== activeMarketKey;
+  const previousSnapshot = new Map(previousPrices);
 
   quotes = marketKeys.size === 1 ? [...next.values()] : [];
   if (marketChanged) {
@@ -29,6 +30,10 @@ async function scan() {
   previousPrices.clear();
   for (const [key, quote] of next) {
     previousPrices.set(key, quote.price);
+  }
+  if (Date.now() - lastConditionerScanAt >= 1500) {
+    lastConditionerScanAt = Date.now();
+    await monitorConditioners(previousSnapshot);
   }
   renderQuotes();
   if (Object.values(executionStates).some((state) =>

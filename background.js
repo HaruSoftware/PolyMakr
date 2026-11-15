@@ -30,6 +30,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "POLYMAKR_PUBLIC_POSITIONS") {
+    fetchPublicPositions(message.walletAddress, message.conditionId)
+      .then((result) => sendResponse({ result }))
+      .catch((error) => sendResponse({ error: error.message || String(error) }));
+    return true;
+  }
+
   if (message?.type !== "POLYMAKR_NOTIFICATION") {
     return;
   }
@@ -79,6 +86,17 @@ async function fetchBaselineTrades(walletAddress, conditionId) {
   url.searchParams.set("condition", conditionId);
   url.searchParams.set("limit", "100");
   return fetchPolymarketJson(url, "trades públicos da carteira");
+}
+
+async function fetchPublicPositions(walletAddress, conditionId) {
+  if (typeof walletAddress !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)
+    || typeof conditionId !== "string" || !conditionId) {
+    throw new Error("Os dados para consultar posições públicas são inválidos.");
+  }
+  const url = new URL("https://data-api.polymarket.com/positions");
+  url.searchParams.set("user", walletAddress.toLowerCase());
+  url.searchParams.set("market", conditionId);
+  return fetchPolymarketJson(url, "posições públicas da carteira");
 }
 
 async function fetchPolymarketJson(url, resource) {
