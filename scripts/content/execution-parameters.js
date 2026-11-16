@@ -536,7 +536,11 @@ function editExecutionParameter(parameter, isFavorite) {
   else editingExecutionParameterId = parameter.id;
   selectedExecutionParameterType = type;
   const form = shadow.querySelector(".execution-parameter-form");
-  form.elements.namedItem("name").value = parameter.name;
+  const definition = executionParameterTypes.get(type);
+  const hasGeneratedName = [parameter.comparison, "<=", ">="]
+    .filter((comparison, index, comparisons) => comparisons.indexOf(comparison) === index)
+    .some((comparison) => definition.defaultName({ ...parameter, comparison }, parameter.effect) === parameter.name);
+  form.elements.namedItem("name").value = hasGeneratedName ? "" : parameter.name;
   form.elements.namedItem("type").value = type;
   renderExecutionParameterTypeOptions();
   renderExecutionParameterTypeFields(parameter);

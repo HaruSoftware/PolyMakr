@@ -76,13 +76,13 @@ function renderValueDifferenceFields(container, parameter = null) {
 }
 
 function parseDisplayedMarketUsd(value) {
-  const match = String(value || "").trim().match(/^\$\s*(-?[\d,]+(?:\.\d+)?)$/);
-  if (!match) return null;
-  const parsed = Number(match[1].replace(/,/g, ""));
+  const matches = [...String(value || "").replace(/\u00a0/g, " ").matchAll(/\$\s*(-?[\d,]+(?:\.\d+)?)/g)];
+  if (matches.length !== 1) return null;
+  const parsed = Number(matches[0][1].replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function readLabeledMarketPrice(labels) {
+function readLabeledMarketPrice(labels, preferLargestLocalValue = false) {
   for (const labelText of labels) {
     const labelNodes = [...document.querySelectorAll("span,div")].filter((element) =>
       element.childElementCount === 0
@@ -91,25 +91,29 @@ function readLabeledMarketPrice(labels) {
     );
     if (!labelNodes.length) continue;
 
-    const values = [];
+    let nearestValue = null;
     for (const label of labelNodes) {
       let ancestor = label.parentElement;
       for (let depth = 0; ancestor && depth < 6; depth += 1, ancestor = ancestor.parentElement) {
-        const prices = [...ancestor.querySelectorAll("span")]
+        const prices = [...ancestor.querySelectorAll("span,div")]
           .filter((element) => element !== label
             && element.childElementCount === 0
             && isVisible(element))
           .map((element) => parseDisplayedMarketUsd(element.textContent))
           .filter((value) => value !== null);
         const uniquePrices = [...new Set(prices)];
-        if (uniquePrices.length === 1) {
-          values.push(uniquePrices[0]);
-          break;
+        if (uniquePrices.length === 1 && nearestValue === null) {
+          nearestValue = uniquePrices[0];
+        }
+        if (uniquePrices.length > 1 && preferLargestLocalValue) {
+          return uniquePrices.reduce((largest, value) =>
+            Math.abs(value) > Math.abs(largest) ? value : largest
+          );
         }
       }
+      if (nearestValue !== null) return nearestValue;
     }
-    const uniqueValues = [...new Set(values)];
-    return uniqueValues.length === 1 ? uniqueValues[0] : null;
+    return null;
   }
   return null;
 }
@@ -119,7 +123,7 @@ function readMarketValueDifference() {
     && Date.now() - marketValueDifferenceSnapshot.checkedAt < 250) {
     return marketValueDifferenceSnapshot;
   }
-  const currentPrice = readLabeledMarketPrice(["Current price", "Final price"]);
+  const currentPrice = readLabeledMarketPrice(["Current price", "Final price"], true);
   const priceToBeat = readLabeledMarketPrice(["Price To Beat"]);
   marketValueDifferenceSnapshot = {
     marketKey: activeMarketKey,
