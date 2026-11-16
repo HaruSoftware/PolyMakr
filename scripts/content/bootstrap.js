@@ -184,8 +184,9 @@ shadow.innerHTML = `
     .execution-parameter-builder .execution-parameter-type-copy strong { font-size: 10px; }
     .execution-parameter-builder .execution-parameter-type-copy small { font-size: 9px; }
     .execution-parameter-flow-explanation { display: flex; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid #e0e8e2; border-radius: 10px; background: #ffffffc7; }
+    .execution-parameter-flow-explanation-content { display: grid; min-width: 0; gap: 8px; }
     .execution-parameter-flow-explanation p { margin: 3px 0 0; color: #78827b; font-size: 9px; line-height: 1.45; }
-    .execution-parameter-flow-note { display: flex; align-items: flex-start; gap: 8px; margin-top: auto; padding: 10px; border: 1px solid #e0e8e2; border-radius: 9px; background: #ffffffa8; color: #78827b; font-size: 9px; line-height: 1.5; }
+    .execution-parameter-flow-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 0; padding: 8px 0 0; border-top: 1px solid #e7ede8; color: #78827b; font-size: 9px; line-height: 1.5; }
     .execution-parameter-flow-note span { display: grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border-radius: 50%; background: #e8f4ec; color: #087c3b; font-size: 10px; font-weight: 800; }
     .execution-parameter-editor { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
     .execution-parameter-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -215,7 +216,7 @@ shadow.innerHTML = `
       .execution-parameter-flow { padding: 17px; }
       .execution-parameter-flow h2 { margin-top: 8px; font-size: 17px; }
       .execution-parameter-flow-track { margin-top: 14px; }
-      .execution-parameter-flow-note { margin-top: 14px; }
+      .execution-parameter-flow-note { margin-top: 0; }
       .execution-parameter-editor { padding: 17px; }
     }
     .rule, .template { position: relative; display: grid; height: 64px; min-height: 64px; grid-template-rows: minmax(0, 1fr) auto; gap: 5px; padding: 6px 7px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
@@ -489,10 +490,12 @@ shadow.innerHTML = `
             <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
             <div class="execution-parameter-flow-explanation">
               <span class="execution-parameter-flow-index">02</span>
-              <div class="execution-parameter-flow-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
+              <div class="execution-parameter-flow-explanation-content">
+                <div class="execution-parameter-flow-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
+                <div class="execution-parameter-flow-note"><span aria-hidden="true">i</span> A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
+              </div>
             </div>
           </div>
-          <div class="execution-parameter-flow-note"><span aria-hidden="true">i</span> A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
         </section>
         <section class="execution-parameter-editor" aria-label="Configuração do parâmetro">
           <div class="execution-parameter-editor-heading">
@@ -512,7 +515,7 @@ shadow.innerHTML = `
             </div>
             <div class="save-actions">
               <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
-              <button class="save-action favorite" type="submit" name="parameterAction" value="favorite">Salvar como favorito</button>
+              <button class="save-action favorite" type="submit" name="parameterAction" value="favorite"><span class="star" aria-hidden="true">★</span> Salvar como favorito</button>
             </div>
             <button class="execution-parameter-cancel" type="button" hidden>Cancelar edição</button>
           </form>
