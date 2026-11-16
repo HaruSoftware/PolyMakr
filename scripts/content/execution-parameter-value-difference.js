@@ -76,13 +76,14 @@ function renderValueDifferenceFields(container, parameter = null) {
 }
 
 function parseDisplayedMarketUsd(value) {
-  const matches = [...String(value || "").replace(/\u00a0/g, " ").matchAll(/\$\s*(-?[\d,]+(?:\.\d+)?)/g)];
-  if (matches.length !== 1) return null;
-  const parsed = Number(matches[0][1].replace(/,/g, ""));
+  const match = String(value || "").replace(/\u00a0/g, " ").trim()
+    .match(/^\$\s*(-?[\d,]+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const parsed = Number(match[1].replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function readLabeledMarketPrice(labels, preferLargestLocalValue = false) {
+function readLabeledMarketPrice(labels) {
   for (const labelText of labels) {
     const labelNodes = [...document.querySelectorAll("span,div")].filter((element) =>
       element.childElementCount === 0
@@ -91,7 +92,6 @@ function readLabeledMarketPrice(labels, preferLargestLocalValue = false) {
     );
     if (!labelNodes.length) continue;
 
-    let nearestValue = null;
     for (const label of labelNodes) {
       let ancestor = label.parentElement;
       for (let depth = 0; ancestor && depth < 6; depth += 1, ancestor = ancestor.parentElement) {
@@ -102,16 +102,8 @@ function readLabeledMarketPrice(labels, preferLargestLocalValue = false) {
           .map((element) => parseDisplayedMarketUsd(element.textContent))
           .filter((value) => value !== null);
         const uniquePrices = [...new Set(prices)];
-        if (uniquePrices.length === 1 && nearestValue === null) {
-          nearestValue = uniquePrices[0];
-        }
-        if (uniquePrices.length > 1 && preferLargestLocalValue) {
-          return uniquePrices.reduce((largest, value) =>
-            Math.abs(value) > Math.abs(largest) ? value : largest
-          );
-        }
+        if (uniquePrices.length === 1) return uniquePrices[0];
       }
-      if (nearestValue !== null) return nearestValue;
     }
     return null;
   }
@@ -123,7 +115,7 @@ function readMarketValueDifference() {
     && Date.now() - marketValueDifferenceSnapshot.checkedAt < 250) {
     return marketValueDifferenceSnapshot;
   }
-  const currentPrice = readLabeledMarketPrice(["Current price", "Final price"], true);
+  const currentPrice = readLabeledMarketPrice(["Current price", "Final price"]);
   const priceToBeat = readLabeledMarketPrice(["Price To Beat"]);
   marketValueDifferenceSnapshot = {
     marketKey: activeMarketKey,
