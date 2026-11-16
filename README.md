@@ -12,6 +12,7 @@ Extensão MV3 para Chrome que adiciona um painel ao Polymarket, acompanha preço
 - `scripts/content/simulation.js`: carteira virtual, ordens simuladas e acompanhamento do livro público.
 - `scripts/content/conditioners.js`: condicionadores, avaliação de condições combinadas e controles de execução.
 - `scripts/content/views.js`: renderização e edição das listas.
+- `scripts/content/analysis.js`: análise de cotações observadas e dos livros públicos do mercado ativo.
 - `scripts/content/bootstrap.js`: cria a interface, conecta os eventos e inicia o monitoramento.
 
 Os scripts de conteúdo são JavaScript clássico, carregados na ordem declarada no `manifest.json`; não há etapa de build. Os módulos de funções vêm antes do bootstrap porque compartilham o contexto isolado do content script. Ao adicionar um módulo, declare-o no manifest antes do bootstrap e preserve essa ordem.
@@ -27,6 +28,10 @@ Os scripts de conteúdo são JavaScript clássico, carregados na ordem declarada
    A aba **Registro** conserva regras disparadas e removidas da fila em cards somente de texto. Regras automatizadas saem da fila quando o envio é tentado; o registro mostra aguardando, preenchimento parcial ou preenchida. Remover uma regra ainda não disparada também a arquiva, sem apagar seu histórico. É possível selecionar registros individuais ou todos para apagar; cada exclusão, inclusive **Limpar tudo**, exige confirmação em um popup. Favoritos permanecem reutilizáveis e não são arquivados até virarem regra.
    Na aba **Condicionadores**, crie uma estratégia com etapas principais ordenadas. Cada etapa escolhe seu próprio resultado (Up ou Down), ação (Comprar ou Vender), quantidade em shares, condição de preço e limite da ordem. A próxima etapa principal só é enviada após o preenchimento da anterior. As **etapas de segurança** formam uma lista separada e independente: cada uma escolhe seu próprio resultado, ação, quantidade e preço, podendo atuar como válvula de escape sem depender do avanço da sequência principal. As proteções adicionais de liquidez, spread, tempo restante e investimento ficam recolhidas para manter o formulário simples. Condicionadores podem ser pausados, retomados ou encerrados. A aba **Configurações** também aceita o endereço público/proxy wallet necessário para verificar posições de venda e acompanhar fills. A seção **Carteira de ativos** permite resetar a carteira virtual; o popup exige um novo saldo inicial e só confirma o reset ao criar a nova carteira. Cancelar ou fechar o popup mantém os dados atuais.
    Favoritos pode ser filtrado por **Todos**, **UP** ou **DOWN**; os botões mostram a quantidade de modelos de cada resultado e clicar novamente no filtro ativo volta para **Todos**. Modelos de simulação exibem um selo laranja **S**. Arrastar um favorito para uma seção de regras cria uma nova regra e mantém o modelo salvo; Favoritos não aceita cards arrastados. O menu ⋮ também permite ver detalhes, editar, carregar um modelo no formulário e renomear. Editar uma regra concluída não a reativa. A extensão não altera o cartão de negociação do Polymarket.
+
+## Análise do mercado
+
+A aba **Análise** mostra o preço de Down como probabilidade implícita do resultado (uma referência de “medo”, não um indicador psicológico), o movimento e a tendência da cotação Up e sua amplitude. Esses valores e o gráfico vêm das cotações Up/Down observadas na página durante a sessão atual; não há histórico anterior nem dados de outros mercados. Spread, profundidade e desequilíbrio são calculados a partir dos livros públicos dos tokens Up/Down deste mercado. Os livros são atualizados a cada 15 segundos enquanto a aba estiver aberta.
 
 ## Regras
 
@@ -61,7 +66,7 @@ O painel da carteira mostra patrimônio e retorno total, saldo disponível, P&L 
 
 Para acompanhar fills e atualizar o valor das posições, mantenha aberta uma página do Polymarket; os livros dos mercados com ordens ou posições são consultados a cada 2 segundos. A simulação não modela posição na fila, latência, taxas ou o resultado oficial de mercados resolvidos; o P&L é bruto e pode diferir do resultado real. Posições são avaliadas pelo melhor bid disponível. A carteira virtual e suas ordens são separadas das ordens reais.
 
-O monitor lê os preços dos botões visíveis `Up` e `Down` para detectar o cruzamento do gatilho, mas não os mostra como opções nem os usa para preencher o gatilho ou o preço limite. Os preços e o layout podem variar; confira a associação de mercado/resultado antes de confiar em um alerta. Se a regra for criada antes da extensão observar um preço, ela só dispara após uma mudança que cruze o limite.
+O monitor lê os preços dos botões visíveis `Up` e `Down` para detectar o cruzamento do gatilho, mas não os mostra como opções nem os usa para preencher o gatilho ou o preço limite. A aba Análise também observa esses preços apenas durante a sessão atual e consulta o livro público dos tokens do próprio mercado. Os preços e o layout podem variar; confira a associação de mercado/resultado antes de confiar em um alerta. Se a regra for criada antes da extensão observar um preço, ela só dispara após uma mudança que cruze o limite.
 
 ## Armazenamento e permissões
 

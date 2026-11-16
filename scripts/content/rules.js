@@ -262,6 +262,8 @@ function selectView(viewName) {
     view.classList.toggle("active", active);
     view.hidden = !active;
   });
+  if (viewName === "analysis") startMarketAnalysis();
+  else stopMarketAnalysis();
 }
 
 function updateRuleFormMode() {

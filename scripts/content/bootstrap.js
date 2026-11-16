@@ -51,6 +51,37 @@ shadow.innerHTML = `
     .view[data-panel="rules"].active { display: flex; flex-direction: column; }
     .view h2 { margin: 0 0 14px; font-size: 15px; }
     .empty { color: #758078; font-size: 12px; }
+    .analysis-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .analysis-heading h2 { margin-bottom: 4px; }
+    .analysis-market-title { margin: 0; color: #78827b; font-size: 11px; }
+    .analysis-refresh { flex: 0 0 auto; padding: 8px 11px; border: 1px solid #dfe6e0; border-radius: 8px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .analysis-refresh:disabled { cursor: wait; opacity: .6; }
+    .analysis-status { min-height: 16px; margin: 10px 0; color: #657168; font-size: 10px; }
+    .analysis-status.error { color: #a33b2e; }
+    .analysis-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .analysis-metric { min-width: 0; padding: 11px; border: 1px solid #e6ebe7; border-radius: 10px; background: #f8faf8; }
+    .analysis-metric span { display: block; color: #78827b; font-size: 10px; }
+    .analysis-metric strong { display: block; margin-top: 5px; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+    .analysis-metric small { display: block; margin-top: 4px; color: #78827b; font-size: 9px; line-height: 1.4; }
+    .analysis-up { color: #087c3b; }
+    .analysis-down { color: #a33b2e; }
+    .analysis-section { margin-top: 14px; padding: 12px; border: 1px solid #e6ebe7; border-radius: 10px; background: #fff; }
+    .analysis-section h3 { margin: 0 0 8px; font-size: 12px; }
+    .analysis-chart { display: block; width: 100%; height: auto; min-height: 130px; overflow: visible; }
+    .analysis-chart-grid { stroke: #edf0ed; stroke-width: 1; }
+    .analysis-chart-up, .analysis-chart-down { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .analysis-chart-up { stroke: #07833b; }
+    .analysis-chart-down { stroke: #c4312b; }
+    .analysis-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; color: #657168; font-size: 10px; }
+    .analysis-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .analysis-legend i { width: 9px; height: 9px; border-radius: 50%; background: #07833b; }
+    .analysis-legend .down-dot { background: #c4312b; }
+    .analysis-book-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .analysis-book-card { min-width: 0; padding: 10px; border-radius: 8px; background: #f8faf8; }
+    .analysis-book-card h4 { margin: 0 0 7px; font-size: 11px; }
+    .analysis-book-card p { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 0; color: #657168; font-size: 10px; }
+    .analysis-book-card strong { color: #18211b; text-align: right; }
+    .analysis-note { margin: 9px 0 0; color: #78827b; font-size: 9px; line-height: 1.45; }
     form { display: grid; gap: 9px; }
     label { display: grid; gap: 4px; color: #59645d; font-size: 11px; }
     input, select {
@@ -298,6 +329,7 @@ shadow.innerHTML = `
       .tab svg { width: 17px; height: 17px; flex-basis: 17px; }
       .views { order: 1; }
       .conditioner-step-fields { grid-template-columns: 1fr 1fr; }
+      .analysis-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
   <div class="backdrop"></div>
@@ -313,6 +345,9 @@ shadow.innerHTML = `
         </button>
         <button id="rules-tab" class="tab" type="button" role="tab" data-view="rules" aria-controls="panel-rules" aria-label="Regras" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Regras</span>
+        </button>
+        <button id="analysis-tab" class="tab" type="button" role="tab" data-view="analysis" aria-controls="panel-analysis" aria-label="Análise" aria-selected="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-5 3 3 5-7"/></svg><span>Análise</span>
         </button>
         <button id="archive-tab" class="tab" type="button" role="tab" data-view="archive" aria-controls="panel-archive" aria-label="Registro" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4H4zM6 9v10h12V9M10 13h4"/></svg><span>Registro</span>
@@ -384,6 +419,36 @@ shadow.innerHTML = `
           <div class="favorites"></div>
         </section>
       </div>
+    </div>
+    <div id="panel-analysis" class="view" data-panel="analysis" role="tabpanel" aria-labelledby="analysis-tab" hidden>
+      <div class="analysis-heading">
+        <div><h2>Análise do mercado</h2><p class="analysis-market-title">Abra um mercado com resultados Up/Down.</p></div>
+        <button class="analysis-refresh" type="button">Atualizar</button>
+      </div>
+      <p class="analysis-status" role="status" aria-live="polite">Aguardando dados do mercado.</p>
+      <div class="analysis-metrics">
+        <article class="analysis-metric"><span>Medo · preço de Down</span><strong data-analysis-value="fear">—</strong><small>Probabilidade implícita pelo preço do resultado Down.</small></article>
+        <article class="analysis-metric"><span>Movimento Up · janela observada</span><strong data-analysis-value="movement">—</strong><small data-analysis-detail="movement">Variação da cotação observada.</small></article>
+        <article class="analysis-metric"><span>Tendência Up · janela observada</span><strong data-analysis-value="trend">—</strong><small data-analysis-detail="trend">Calculada pelas cotações observadas nesta página.</small></article>
+        <article class="analysis-metric"><span>Amplitude Up · janela observada</span><strong data-analysis-value="range">—</strong><small>Máxima menos mínima observadas na janela.</small></article>
+      </div>
+      <section class="analysis-section">
+        <h3>Cotações observadas</h3>
+        <svg class="analysis-chart" viewBox="0 0 600 180" role="img" aria-label="Histórico de cotações Up e Down observado nesta sessão">
+          <path class="analysis-chart-grid" d="M40 20H590M40 85H590M40 150H590"/>
+          <path class="analysis-chart-up"></path><path class="analysis-chart-down"></path>
+        </svg>
+        <div class="analysis-legend"><span><i></i>Up</span><span><i class="down-dot"></i>Down</span><span class="analysis-sample-count">0 observações</span></div>
+        <p class="analysis-note">O gráfico usa apenas observações feitas enquanto esta página está aberta; não representa histórico anterior nem previsão.</p>
+      </section>
+      <section class="analysis-section">
+        <h3>Livro de ofertas deste mercado</h3>
+        <div class="analysis-book-grid">
+          <article class="analysis-book-card" data-analysis-book="Up"><h4>Up</h4><p><span>Melhor bid / ask</span><strong data-book-value="quotes">—</strong></p><p><span>Spread</span><strong data-book-value="spread">—</strong></p><p><span>Profundidade (5 níveis)</span><strong data-book-value="depth">—</strong></p><p><span>Desequilíbrio de bids</span><strong data-book-value="imbalance">—</strong></p></article>
+          <article class="analysis-book-card" data-analysis-book="Down"><h4>Down</h4><p><span>Melhor bid / ask</span><strong data-book-value="quotes">—</strong></p><p><span>Spread</span><strong data-book-value="spread">—</strong></p><p><span>Profundidade (5 níveis)</span><strong data-book-value="depth">—</strong></p><p><span>Desequilíbrio de bids</span><strong data-book-value="imbalance">—</strong></p></article>
+        </div>
+        <p class="analysis-note">Spread e profundidade vêm do livro público do CLOB; o desequilíbrio compara o valor em bids e asks nos cinco primeiros níveis.</p>
+      </section>
     </div>
     <div id="panel-archive" class="view" data-panel="archive" role="tabpanel" aria-labelledby="archive-tab" hidden>
       <div class="section-heading"><h2>Registro de regras</h2><span class="count-chip archive-count">0</span></div>
@@ -607,6 +672,7 @@ let mutationScanScheduled = false;
 let lastConditionerScanAt = 0;
 
 shadow.querySelector(".close").addEventListener("click", togglePanel);
+shadow.querySelector(".analysis-refresh").addEventListener("click", refreshMarketAnalysisBook);
 simulationClearHistoryButton.addEventListener("click", clearSimulationOrderHistory);
 simulationClearActivityButton.addEventListener("click", clearSimulationActivity);
 simulationResetWalletButton.addEventListener("click", openSimulationResetDialog);

@@ -29,6 +29,7 @@ async function scan() {
   for (const [key, quote] of next) {
     previousPrices.set(key, quote.price);
   }
+  observeMarketAnalysisQuotes(quotes, activeMarketKey);
   if (Date.now() - lastConditionerScanAt >= 1500) {
     lastConditionerScanAt = Date.now();
     await monitorConditioners();
@@ -539,6 +540,10 @@ async function resolveMarketTradingData(rule) {
   return {
     conditionId: market.conditionId,
     assetId: String(assetIds[outcomeIndex]),
+    outcomeAssets: Object.fromEntries(outcomes.map((outcome, index) => [
+      normalizeMarketLabel(outcome),
+      String(assetIds[index] || "")
+    ])),
     endDate: Number.isFinite(endDate) ? endDate : null,
     isClosed: isExplicitlyTrue(market.closed),
     isActive: !isExplicitlyFalse(market.active)
