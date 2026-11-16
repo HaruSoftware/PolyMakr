@@ -183,11 +183,11 @@ shadow.innerHTML = `
     .execution-parameter-builder .execution-parameter-type-option[aria-pressed="true"] { border-color: #b7d6c1; background: #edf7f0; box-shadow: inset 3px 0 #087c3b; }
     .execution-parameter-builder .execution-parameter-type-copy strong { font-size: 10px; }
     .execution-parameter-builder .execution-parameter-type-copy small { font-size: 9px; }
-    .execution-parameter-flow-explanation { display: flex; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid #e0e8e2; border-radius: 10px; background: #ffffffc7; }
-    .execution-parameter-flow-explanation-content { display: grid; min-width: 0; gap: 8px; }
+    .execution-parameter-flow-explanation { display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: start; gap: 8px 9px; padding: 10px; border: 1px solid #e0e8e2; border-radius: 10px; background: #ffffffc7; }
+    .execution-parameter-flow-explanation-copy { min-width: 0; }
     .execution-parameter-flow-explanation p { margin: 3px 0 0; color: #78827b; font-size: 9px; line-height: 1.45; }
-    .execution-parameter-flow-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 0; padding: 8px 0 0; border-top: 1px solid #e7ede8; color: #78827b; font-size: 9px; line-height: 1.5; }
-    .execution-parameter-flow-note span { display: grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border-radius: 50%; background: #e8f4ec; color: #087c3b; font-size: 10px; font-weight: 800; }
+    .execution-parameter-flow-note-icon { display: grid; width: 16px; height: 16px; justify-self: center; place-items: center; border-radius: 50%; background: #e8f4ec; color: #087c3b; font-size: 10px; font-weight: 800; }
+    .execution-parameter-flow-note-text { min-width: 0; padding-top: 8px; border-top: 1px solid #e7ede8; color: #78827b; font-size: 9px; line-height: 1.5; }
     .execution-parameter-editor { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
     .execution-parameter-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
     .execution-parameter-editor-heading small { display: block; margin-bottom: 4px; color: #78827b; font-size: 8px; font-weight: 800; letter-spacing: .12em; }
@@ -490,10 +490,9 @@ shadow.innerHTML = `
             <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
             <div class="execution-parameter-flow-explanation">
               <span class="execution-parameter-flow-index">02</span>
-              <div class="execution-parameter-flow-explanation-content">
-                <div class="execution-parameter-flow-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
-                <div class="execution-parameter-flow-note"><span aria-hidden="true">i</span> A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
-              </div>
+              <div class="execution-parameter-flow-copy execution-parameter-flow-explanation-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
+              <span class="execution-parameter-flow-note-icon" aria-hidden="true">i</span>
+              <div class="execution-parameter-flow-note-text">A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
             </div>
           </div>
         </section>
