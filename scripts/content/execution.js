@@ -7,6 +7,7 @@ async function scan() {
   quotes = marketKeys.size === 1 ? [...next.values()] : [];
   if (marketChanged) {
     activeMarketKey = nextMarketKey;
+    resetExecutionParameterData(activeMarketKey);
     previousPrices.clear();
     try {
       executionStates = activeMarketKey ? await loadExecutionStates(activeMarketKey) : {};
@@ -17,6 +18,9 @@ async function scan() {
     }
     renderRules();
   }
+  refreshExecutionParameterData().then(renderExecutionParameterStatuses).catch((error) => {
+    showToast("Não foi possível atualizar os parâmetros", error.message || String(error), "error");
+  });
 
   for (const [key, quote] of next) {
     const previous = previousPrices.get(key);
@@ -30,10 +34,6 @@ async function scan() {
     previousPrices.set(key, quote.price);
   }
   observeMarketAnalysisQuotes(quotes, activeMarketKey);
-  if (Date.now() - lastConditionerScanAt >= 1500) {
-    lastConditionerScanAt = Date.now();
-    await monitorConditioners();
-  }
   renderQuotes();
   if (Object.values(executionStates).some((state) =>
     ["queued", "completed", "failed", "clicked", "awaiting_fill", "partially_filled", "filled"].includes(state.status)
@@ -233,11 +233,37 @@ async function processQueuedRulesLocked(marketKey, states) {
     }
   }
 
+  const blockedRuleIds = new Set();
   while (true) {
-    const rule = findNextQueuedRule(states);
+    const rule = findNextQueuedRule(states, blockedRuleIds);
     if (!rule) return;
     const quote = quotes.find((item) => item.outcome === rule.outcome);
     if (!quote || quoteMarketKey(quote) !== marketKey) return;
+
+    const parameterDecision = await getExecutionParameterDecision(rule);
+    if (parameterDecision.blocked) {
+      blockedRuleIds.add(rule.id);
+      const message = executionParameterDecisionMessage(parameterDecision);
+      if (states[rule.id].message !== message || !states[rule.id].parameterBlocked) {
+        states[rule.id] = {
+          ...states[rule.id],
+          message,
+          parameterBlocked: true,
+          updatedAt: Date.now()
+        };
+        await saveExecutionStates(marketKey, states);
+      }
+      continue;
+    }
+    if (states[rule.id].parameterBlocked) {
+      states[rule.id] = {
+        ...states[rule.id],
+        message: "Parâmetros liberados; execução retomada.",
+        parameterBlocked: false,
+        updatedAt: Date.now()
+      };
+      await saveExecutionStates(marketKey, states);
+    }
 
     states[rule.id] = {
       ...states[rule.id],
@@ -274,6 +300,10 @@ async function processQueuedRulesLocked(marketKey, states) {
     let simulationOrder = null;
     try {
       if (rule.mode === "paper") {
+        const latestParameterDecision = await getExecutionParameterDecision(rule);
+        if (latestParameterDecision.blocked) {
+          throw createExecutionParameterBlockedError(latestParameterDecision);
+        }
         simulationOrder = await createSimulationOrder(rule);
         const status = simulationOrder.status === "filled"
           ? "filled"
@@ -319,6 +349,10 @@ async function processQueuedRulesLocked(marketKey, states) {
         sendRuleNotification(`${summary} Trade enviado; aguardando confirmação de fills na carteira.`, rule.side === "buy" ? "Comprar" : "Vender");
         continue;
       } else {
+        const latestParameterDecision = await getExecutionParameterDecision(rule);
+        if (latestParameterDecision.blocked) {
+          throw createExecutionParameterBlockedError(latestParameterDecision);
+        }
         const notice = rule.mode === "confirm"
           ? "Confirmação não conectada; somente aviso."
           : "Somente alerta.";
@@ -333,6 +367,23 @@ async function processQueuedRulesLocked(marketKey, states) {
         triggeredPrice: states[rule.id].triggeredPrice
       });
     } catch (error) {
+      if (error?.name === "ExecutionParameterBlockedError") {
+        blockedRuleIds.add(rule.id);
+        states[rule.id] = {
+          ...states[rule.id],
+          status: "queued",
+          message: error.message,
+          parameterBlocked: true,
+          updatedAt: Date.now()
+        };
+        try {
+          await saveExecutionStates(marketKey, states);
+        } catch (storageError) {
+          showToast("Não foi possível registrar o bloqueio do parâmetro", storageError.message || String(storageError), "error");
+          return;
+        }
+        continue;
+      }
       const reason = error instanceof Error ? error.message : "Falha inesperada ao executar a regra.";
       const simulationOrderStatus = simulationOrder?.status === "filled"
         ? "filled"
@@ -383,12 +434,13 @@ async function processQueuedRulesLocked(marketKey, states) {
   }
 }
 
-function findNextQueuedRule(states) {
+function findNextQueuedRule(states, blockedRuleIds = new Set()) {
   const independentRule = rules.find((rule) =>
     rule.enabled !== false
     && rule.queuePolicy === "independent"
     && rule.marketKey === activeMarketKey
     && states[rule.id]?.status === "queued"
+    && !blockedRuleIds.has(rule.id)
     && quotes.some((quote) => quote.outcome === rule.outcome)
   );
   if (independentRule) return independentRule;
@@ -400,6 +452,7 @@ function findNextQueuedRule(states) {
     && !["completed", "failed", "clicked", "awaiting_fill", "partially_filled", "filled"].includes(states[rule.id]?.status)
   );
   return states[firstOrderedRule?.id]?.status === "queued"
+    && !blockedRuleIds.has(firstOrderedRule?.id)
     && quotes.some((quote) => quote.outcome === firstOrderedRule.outcome)
     ? firstOrderedRule
     : null;
@@ -488,6 +541,10 @@ async function executeLimitOrder(rule, quote) {
   if (!currentTradeButton || currentTradeButton.disabled) {
     throw new Error("O botão Trade deixou de estar disponível enquanto os trades eram consultados.");
   }
+  const parameterDecision = await getExecutionParameterDecision(rule);
+  if (parameterDecision.blocked) {
+    throw createExecutionParameterBlockedError(parameterDecision);
+  }
   const submittedAt = Date.now();
   currentTradeButton.click();
   const baselineTradeKeys = baselineTrades
@@ -536,7 +593,8 @@ async function resolveMarketTradingData(rule) {
   }
   const isExplicitlyFalse = (value) => value === false || value === "false";
   const isExplicitlyTrue = (value) => value === true || value === "true";
-  const endDate = parseMarketEndDate(market.endDateIso || market.endDate);
+  const endDate = parseMarketEndDate(market.endDate)
+    ?? parseMarketEndDate(market.endDateIso);
   return {
     conditionId: market.conditionId,
     assetId: String(assetIds[outcomeIndex]),
@@ -561,6 +619,8 @@ function parseMarketEndDate(value) {
   if (Number.isFinite(numeric)) {
     return numeric < 1e12 ? numeric * 1000 : numeric;
   }
+  // Gamma's endDateIso may be date-only; it cannot provide a reliable countdown.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return null;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : null;
 }

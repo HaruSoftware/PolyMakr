@@ -54,7 +54,8 @@ function createRuleDraft(data, defaultMode = "notify") {
     expiration: data.get("expiration") || "never",
     mode,
     walletAddress: mode === "auto_limit" ? ruleWalletAddress.toLowerCase() : "",
-    queuePolicy: data.get("queuePolicy") === "independent" ? "independent" : "ordered"
+    queuePolicy: data.get("queuePolicy") === "independent" ? "independent" : "ordered",
+    honorExecutionParameters: data.get("honorExecutionParameters") === "on"
   };
 }
 
@@ -170,6 +171,7 @@ function createFavoriteTemplate(rule, name, sourceRuleId) {
     expiration: rule.expiration || "never",
     mode: rule.mode || "notify",
     queuePolicy: rule.queuePolicy === "independent" ? "independent" : "ordered",
+    honorExecutionParameters: rule.honorExecutionParameters !== false,
     ...(sourceRuleId ? { sourceRuleId } : {}),
     createdAt: Date.now()
   };

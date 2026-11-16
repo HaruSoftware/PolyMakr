@@ -63,6 +63,7 @@ function renderRules() {
   renderRuleList(queueRulesElement, queuedRules, "ordered");
   renderRuleList(immediateRulesElement, immediateRules, "independent");
   renderFavorites();
+  renderExecutionParameters();
   shadow.querySelector(".rules-count").textContent = String(marketRules.length);
   shadow.querySelector('[data-lane="ordered"] .lane-count').textContent = String(queuedRules.length);
   shadow.querySelector('[data-lane="independent"] .lane-count').textContent = String(immediateRules.length);
@@ -241,7 +242,7 @@ function renderRuleList(container, list, queuePolicy) {
     const state = execution.status || "monitoring";
     const stateLabels = {
       monitoring: "Monitorando",
-      queued: "Na fila",
+      queued: execution.parameterBlocked ? "Bloqueada por parâmetro" : "Na fila",
       processing: "Executando",
       awaiting_fill: "Aguardando preenchimento",
       partially_filled: "Preenchida parcialmente",
@@ -728,6 +729,7 @@ async function activateFavorite(favorite, queuePolicy, targetRuleId, insertAfter
     mode: favorite.mode || "notify",
     walletAddress: favorite.mode === "auto_limit" ? walletAddress.toLowerCase() : "",
     queuePolicy,
+    honorExecutionParameters: favorite.honorExecutionParameters !== false,
     id: crypto.randomUUID(),
     enabled: true,
     createdAt: Date.now()
@@ -787,6 +789,7 @@ async function editRule(rule) {
   form.elements.expiration.value = rule.expiration || "never";
   form.elements.mode.value = rule.mode || "notify";
   form.elements.queuePolicy.value = rule.queuePolicy === "independent" ? "independent" : "ordered";
+  form.elements.honorExecutionParameters.checked = rule.honorExecutionParameters === true;
   renderQuotes();
   updateRuleFormMode();
   showToast("Editando regra", executionStates[rule.id]?.status
@@ -809,6 +812,7 @@ function useRuleTemplate(rule) {
   form.elements.expiration.value = rule.expiration || "never";
   form.elements.mode.value = rule.mode || "notify";
   form.elements.queuePolicy.value = rule.queuePolicy === "independent" ? "independent" : "ordered";
+  form.elements.honorExecutionParameters.checked = rule.honorExecutionParameters !== false;
   renderQuotes();
   showToast("Modelo carregado", quotes.some((quote) => quote.outcome === rule.outcome)
     ? "Modelo carregado para o mercado ativo. Salve para criar uma regra."

@@ -160,6 +160,10 @@ async function createSimulationOrder(rule) {
     if (account.generation !== startingGeneration) {
       throw new Error("A carteira foi reiniciada enquanto a ordem era preparada; tente novamente.");
     }
+    const parameterDecision = await getExecutionParameterDecision(rule);
+    if (parameterDecision.blocked) {
+      throw createExecutionParameterBlockedError(parameterDecision);
+    }
     account.bookLiquidity = account.bookLiquidity || {};
     const shares = Number(rule.shares);
     const limitCents = Number(rule.orderLimitCents);

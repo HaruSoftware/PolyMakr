@@ -3,7 +3,6 @@ const RULES_KEY = "polymakr.rules";
 const FAVORITES_KEY = "polymakr.favorites";
 const ARCHIVE_KEY = "polymakr.archive";
 const WALLET_KEY = "polymakr.walletAddress";
-const CONDITIONERS_KEY = "polymakr.conditioners";
 const EXECUTION_STATE_PREFIX = "polymakr.execution.";
 const EXECUTION_SCHEMA_KEY = "polymakr.executionSchema";
 const host = document.createElement("div");
@@ -119,6 +118,49 @@ shadow.innerHTML = `
     .favorite-filter[data-outcome-filter="Up"][aria-pressed="true"] { border-color: #a7d6b7; background: #e4f5ea; color: #087c3b; }
     .favorite-filter[data-outcome-filter="Down"][aria-pressed="true"] { border-color: #e5b7b3; background: #fde9e8; color: #a33b2e; }
     .favorite-filter-count { color: #78827b; font-size: 8px; }
+    .execution-parameters-heading { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .execution-parameters-heading h2 { margin: 0; font-size: 12px; }
+    .execution-parameter-create { padding: 5px 8px; border: 1px solid #dfe6e0; border-radius: 6px; background: #fff; color: #087c3b; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+    .execution-parameters-board { display: grid; flex: 0 0 128px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-height: 0; margin-top: 6px; }
+    .execution-parameter-lane { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: 8px; border: 1px solid #e6ebe7; border-radius: 10px; background: #f7f9f7; }
+    .execution-parameter-lane .lane-heading { margin-bottom: 6px; }
+    .execution-parameter-status { min-width: 0; overflow: hidden; color: #657168; font-size: 9px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+    .execution-parameter-status.error { color: #a33b2e; }
+    .execution-parameters-active { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-content: flex-start; gap: 5px; min-height: 0; overflow: auto; }
+    .execution-parameters-favorites { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); grid-auto-rows: min-content; align-content: start; gap: 5px; min-height: 0; overflow: auto; }
+    .execution-parameters-active.drag-over { border-radius: 7px; background: #e8f4ec; }
+    .execution-parameter-card { display: flex; min-width: 0; max-width: 100%; min-height: 32px; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid #e1e7e2; border-radius: 7px; background: #fff; cursor: grab; }
+    .execution-parameters-favorites .execution-parameter-card { width: 100%; min-width: max-content; max-width: none; }
+    .execution-parameter-card[aria-grabbed="true"] { opacity: .5; }
+    .execution-parameter-identity { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 6px; }
+    .execution-parameter-name { display: block; min-width: 0; max-width: 180px; overflow: hidden; color: #435047; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .execution-parameters-favorites .execution-parameter-name { max-width: none; }
+    .execution-parameter-type-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 12px; }
+    .execution-parameter-type-option { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid #dfe6e0; border-radius: 9px; background: #fff; color: #435047; cursor: pointer; font: inherit; text-align: left; }
+    .execution-parameter-type-option[aria-pressed="true"] { border-color: #087c3b; background: #e8f4ec; }
+    .execution-parameter-type-option:disabled { cursor: default; opacity: .7; }
+    .execution-parameter-type-copy { display: grid; min-width: 0; gap: 3px; }
+    .execution-parameter-type-copy strong { font-size: 11px; }
+    .execution-parameter-type-copy small { color: #78827b; font-size: 9px; line-height: 1.35; }
+    .execution-parameter-type-icon { display: inline-grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border: 1px solid #dfe6e0; border-radius: 5px; background: #f1f3f1; color: #59645d; font-size: 13px; font-weight: 800; }
+    .execution-parameter-type-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+    .execution-parameter-type-option[aria-pressed="true"] .execution-parameter-type-icon { border-color: #b8cdbd; background: #fff; color: #087c3b; }
+    .execution-parameter-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: #087c3b; }
+    .execution-parameter-dot.blocking { background: #c4312b; }
+    .execution-parameter-dot.unknown { background: #d78a13; }
+    .execution-parameter-dot.favorite { background: #aab4ac; }
+    .execution-parameter-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
+    .execution-parameter-actions button { padding: 3px 5px; border: 1px solid #e1e6e2; border-radius: 5px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
+    .execution-parameter-actions button.danger { border-color: #f0d7d4; color: #a33b2e; }
+    .execution-parameter-empty { align-self: flex-start; margin: 2px; font-size: 10px; }
+    .execution-parameter-form { max-width: 560px; margin: 0 auto; }
+    .execution-parameter-expression { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+    .execution-parameter-expression > span, .execution-parameter-expression > strong { padding-bottom: 8px; color: #59645d; font-size: 11px; font-weight: 700; }
+    .execution-parameter-expression label { flex: 1 1 115px; min-width: 100px; }
+    .execution-parameter-effect { margin-top: 10px; }
+    .execution-parameter-checkbox { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 7px; }
+    .execution-parameter-checkbox input { width: auto; margin: 0; }
+    .execution-parameter-form [type="submit"] { min-height: 40px; }
     .rule, .template { position: relative; display: grid; height: 64px; min-height: 64px; grid-template-rows: minmax(0, 1fr) auto; gap: 5px; padding: 6px 7px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
     .rule:active, .template:active { cursor: grabbing; }
     .rule[aria-grabbed="true"], .template[aria-grabbed="true"] { opacity: .5; }
@@ -192,36 +234,6 @@ shadow.innerHTML = `
     .favorite-dialog-cancel { background: #f1f3f1; color: #435047; }
     .favorite-dialog-save { background: #e58b16; color: #fff; }
     .settings-section { display: grid; gap: 10px; max-width: 640px; margin: 0 0 16px; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
-    .conditioner-list { display: grid; gap: 10px; max-width: 760px; }
-    .conditioner-card { display: grid; gap: 8px; padding: 12px; border: 1px solid #e1e7e2; border-radius: 10px; background: #fff; color: #435047; font-size: 11px; overflow-wrap: anywhere; }
-    .conditioner-card h3, .conditioner-card p { margin: 0; }
-    .conditioner-card header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .conditioner-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .conditioner-actions button { padding: 6px 9px; border: 1px solid #dfe6e0; border-radius: 7px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
-    .conditioner-actions .danger { color: #a33b2e; }
-    .conditioner-status { padding: 3px 7px; border-radius: 999px; background: #e4f5ea; color: #087c3b; font-size: 9px; font-weight: 750; }
-    .conditioner-status.paused { background: #fff3d8; color: #8a5a00; }
-    .conditioner-status.ended { background: #eef1ef; color: #59645d; }
-    .conditioner-form { max-width: 760px; margin-bottom: 18px; padding: 14px; border: 1px solid #e6ebe7; border-radius: 11px; background: #f8faf8; }
-    .conditioner-form h3 { margin: 0; font-size: 13px; }
-    .conditioner-builder { display: grid; gap: 12px; }
-    .conditioner-steps { display: grid; gap: 8px; }
-    .conditioner-step { display: grid; gap: 8px; padding: 10px; border: 1px solid #e1e7e2; border-radius: 9px; background: #fff; }
-    .conditioner-step-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #435047; font-size: 11px; font-weight: 750; }
-    .conditioner-step-heading button { border: 0; background: transparent; color: #a33b2e; cursor: pointer; font: inherit; }
-    .conditioner-step-fields { display: grid; grid-template-columns: .8fr .8fr 1.2fr .8fr .8fr; gap: 7px; }
-    .conditioner-plan { display: grid; gap: 5px; }
-    .conditioner-add-step { justify-self: start; padding: 7px 10px; border: 1px solid #dfe6e0; border-radius: 7px; background: #fff; color: #087c3b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
-    .conditioner-safety { display: grid; gap: 8px; padding: 10px; border: 1px solid #f0dfc0; border-radius: 9px; background: #fffaf0; }
-    .conditioner-safety h3 { color: #6f4a0b; }
-    .conditioner-safety-steps { display: grid; gap: 8px; }
-    .conditioner-safety-step { border-color: #efdfc3; }
-    .conditioner-add-safety-step { justify-self: start; padding: 7px 10px; border: 1px solid #ead7b5; border-radius: 7px; background: #fff; color: #805300; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
-    .conditioner-advanced { padding: 9px; border: 1px solid #e6ebe7; border-radius: 8px; background: #fff; }
-    .conditioner-advanced summary { color: #59645d; cursor: pointer; font-size: 11px; font-weight: 700; }
-    .conditioner-advanced-fields { display: grid; gap: 8px; margin-top: 10px; }
-    .conditioner-history { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid #edf0ed; color: #657168; }
-    .conditioner-history p { font-size: 10px; }
     .settings-section h3 { margin: 0; font-size: 13px; }
     .settings-section p { margin: 0; color: #657168; font-size: 11px; }
     .settings-section .wallet-settings { margin-top: 0; }
@@ -320,6 +332,9 @@ shadow.innerHTML = `
     .archive-delete-confirm { background: #a33b2e; color: #fff; }
     @media (max-width: 700px) {
       .board { grid-template-columns: repeat(3, minmax(220px, 1fr)); overflow-x: auto; padding-bottom: 5px; }
+      .execution-parameters-board { flex-basis: 196px; grid-template-columns: 1fr; }
+      .execution-parameter-expression { grid-template-columns: auto minmax(80px, 1fr); align-items: center; }
+      .execution-parameter-expression > span { padding-bottom: 0; }
       .view[data-panel="rules"] { padding: 12px; }
       .panel-body { flex-direction: column; }
       .tabs { order: 2; width: 100%; flex: 0 0 auto; flex-direction: row; gap: 4px; overflow-x: auto;
@@ -328,7 +343,6 @@ shadow.innerHTML = `
         justify-content: center; gap: 3px; padding: 5px 4px; font-size: 9px; text-align: center; }
       .tab svg { width: 17px; height: 17px; flex-basis: 17px; }
       .views { order: 1; }
-      .conditioner-step-fields { grid-template-columns: 1fr 1fr; }
       .analysis-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
@@ -346,14 +360,14 @@ shadow.innerHTML = `
         <button id="create-tab" class="tab" type="button" role="tab" data-view="create" aria-controls="panel-create" aria-label="Criar" aria-selected="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Criar</span>
         </button>
+        <button id="execution-parameters-tab" class="tab" type="button" role="tab" data-view="parameters" aria-controls="panel-parameters" aria-label="Parâmetros de Execução" aria-selected="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg><span>Parâmetros</span>
+        </button>
         <button id="rules-tab" class="tab" type="button" role="tab" data-view="rules" aria-controls="panel-rules" aria-label="Regras" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Regras</span>
         </button>
         <button id="analysis-tab" class="tab" type="button" role="tab" data-view="analysis" aria-controls="panel-analysis" aria-label="Análise" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-5 3 3 5-7"/></svg><span>Análise</span>
-        </button>
-        <button id="conditioners-tab" class="tab" type="button" role="tab" data-view="conditioners" aria-controls="panel-conditioners" aria-label="Condicionadores" aria-selected="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6M14 6h6M4 12h2M10 12h10M4 18h8M16 18h4"/><circle cx="12" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg><span>Condicionadores</span>
         </button>
         <button id="archive-tab" class="tab" type="button" role="tab" data-view="archive" aria-controls="panel-archive" aria-label="Registro" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4H4zM6 9v10h12V9M10 13h4"/></svg><span>Registro</span>
@@ -391,11 +405,28 @@ shadow.innerHTML = `
           <option value="ordered">Respeitar a fila</option>
           <option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option>
         </select></label>
+        <label class="execution-parameter-checkbox"><input name="honorExecutionParameters" type="checkbox" checked> Respeitar Parâmetros de Execução</label>
         <div class="save-actions">
           <button class="save-action save" type="submit" name="saveAction" value="save">Salvar regra</button>
           <button class="save-action favorite" type="submit" name="saveAction" value="favorite" aria-label="Salvar e favoritar regra"><span class="star" aria-hidden="true">★</span> Favoritar</button>
         </div>
         <button class="cancel-edit" type="button" hidden>Cancelar edição</button>
+      </form>
+    </div>
+    <div id="panel-parameters" class="view" data-panel="parameters" role="tabpanel" aria-labelledby="execution-parameters-tab" hidden>
+      <h2 class="execution-parameter-form-heading">Criar parâmetro</h2>
+      <p class="hint">Escolha um tipo de parâmetro e defina a condição e a ação.</p>
+      <div class="execution-parameter-type-options" role="group" aria-label="Tipo de parâmetro"></div>
+      <form class="execution-parameter-form">
+        <input name="type" type="hidden" value="market_time">
+        <label>Nome (opcional)<input name="name" maxlength="60" placeholder="Ex.: Evitar os últimos 30 segundos"></label>
+        <div class="execution-parameter-type-fields"></div>
+        <label class="execution-parameter-effect">Ação<select name="effect"><option value="block">Bloquear</option><option value="allow">Não bloquear</option></select></label>
+        <div class="save-actions">
+          <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
+          <button class="save-action favorite" type="submit" name="parameterAction" value="favorite">Salvar como favorito</button>
+        </div>
+        <button class="execution-parameter-cancel" type="button" hidden>Cancelar edição</button>
       </form>
     </div>
     <div id="panel-rules" class="view" data-panel="rules" role="tabpanel" aria-labelledby="rules-tab" hidden>
@@ -417,6 +448,20 @@ shadow.innerHTML = `
             <button class="favorite-filter" type="button" data-outcome-filter="Down" aria-pressed="false">DOWN <span class="favorite-filter-count">0</span></button>
           </div>
           <div class="favorites"></div>
+        </section>
+      </div>
+      <div class="execution-parameters-heading">
+        <h2>Parâmetros de Execução</h2>
+        <button class="execution-parameter-create" type="button">Criar parâmetro</button>
+      </div>
+      <div class="execution-parameters-board" aria-label="Parâmetros de execução e favoritos">
+        <section class="execution-parameter-lane">
+          <h3 class="lane-heading">Em Parâmetros <span class="lane-count execution-parameters-active-count">0</span><span class="execution-parameter-status">Abra um mercado</span></h3>
+          <div class="execution-parameters-active"></div>
+        </section>
+        <section class="execution-parameter-lane">
+          <h3 class="lane-heading">Favoritos <span class="lane-count execution-parameters-favorites-count">0</span></h3>
+          <div class="execution-parameters-favorites"></div>
         </section>
       </div>
     </div>
@@ -522,44 +567,6 @@ shadow.innerHTML = `
         <button class="simulation-reset-wallet" type="button">Resetar carteira de ativos</button>
       </section>
     </div>
-    <div id="panel-conditioners" class="view" data-panel="conditioners" role="tabpanel" aria-labelledby="conditioners-tab" hidden>
-      <div class="section-heading"><h2>Condicionadores</h2><span class="count-chip conditioner-count">0</span></div>
-      <p class="hint">Monte etapas de compra e venda para Up ou Down. A estratégia principal segue a ordem da lista; as etapas de segurança são independentes e podem agir como válvula de escape.</p>
-      <form class="conditioner-form conditioner-builder">
-        <h3>Novo condicionador</h3>
-        <label>Nome<input name="name" maxlength="60" required placeholder="Ex.: Comprar baixo e vender na alta"></label>
-        <label>Descrição (opcional)<input name="description" maxlength="180" placeholder="O que esta estratégia deve fazer?"></label>
-        <label>Execução<select name="mode"><option value="paper">Simular (carteira virtual)</option><option value="auto_limit">Enviar ordem real limite</option></select></label>
-        <div>
-          <h3>Etapas da estratégia</h3>
-          <p class="hint">Exemplo: Comprar Up 10 shares quando cair a 15¢; depois vender Up 10 quando subir a 20¢. O preço informado também é o limite da ordem.</p>
-        </div>
-        <div class="conditioner-steps"></div>
-        <button class="conditioner-add-step" type="button">+ Adicionar etapa</button>
-        <section class="conditioner-safety">
-          <h3>Etapas de segurança independentes</h3>
-          <p class="hint">Cada etapa define sua própria condição e ação e pode disparar sem esperar a sequência principal.</p>
-          <div class="conditioner-safety-steps"></div>
-          <button class="conditioner-add-safety-step" type="button">+ Adicionar etapa de segurança</button>
-        </section>
-        <details class="conditioner-advanced">
-          <summary>Proteções adicionais</summary>
-          <div class="conditioner-advanced-fields">
-            <div class="row">
-              <label>Não comprar se faltar menos de (min)<input name="minRemainingMinutes" type="number" min="0" step="1" value="0"></label>
-              <label>Liquidez mínima (US$)<input name="minLiquidity" type="number" min="0" step="1" value="0"></label>
-            </div>
-            <div class="row">
-              <label>Spread máximo (¢)<input name="maxSpreadCents" type="number" min="0" max="100" step="0.1" value="0"></label>
-              <label>Investimento máximo (US$)<input name="maxInvestment" type="number" min="0" step="0.01" value="0"></label>
-            </div>
-            <label>Máximo de ordens da estratégia<input name="maxOperations" type="number" min="1" step="1" value="10" required></label>
-          </div>
-        </details>
-        <button class="save-action save" type="submit">Salvar condicionador</button>
-      </form>
-      <div class="conditioner-list"></div>
-    </div>
       </main>
     </div>
   </section>
@@ -631,8 +638,6 @@ const archiveDeleteConfirmButton = shadow.querySelector(".archive-delete-confirm
 const walletForm = shadow.querySelector(".wallet-settings");
 const walletInput = walletForm.querySelector('[name="walletAddress"]');
 const toastStack = shadow.querySelector(".toast-stack");
-const conditionerForm = shadow.querySelector(".conditioner-form");
-const conditionerListElement = shadow.querySelector(".conditioner-list");
 const favoriteDialogBackdrop = shadow.querySelector(".favorite-dialog-backdrop");
 const favoriteDialog = shadow.querySelector(".favorite-dialog");
 const favoriteDialogInput = favoriteDialog.querySelector('[name="favoriteName"]');
@@ -642,7 +647,6 @@ const formHeading = shadow.querySelector(".form-heading");
 const cancelEditButton = shadow.querySelector(".cancel-edit");
 const tradingSideGroups = new WeakSet();
 let rules = [];
-let conditioners = [];
 let favorites = [];
 let favoriteOutcomeFilter = "all";
 let archivedRules = [];
@@ -669,7 +673,6 @@ let rulesWrite = Promise.resolve();
 let favoritesWrite = Promise.resolve();
 let scanTimer;
 let mutationScanScheduled = false;
-let lastConditionerScanAt = 0;
 
 shadow.querySelector(".close").addEventListener("click", togglePanel);
 shadow.querySelector(".analysis-refresh").addEventListener("click", refreshMarketAnalysisBook);
@@ -685,10 +688,11 @@ backdrop.addEventListener("click", togglePanel);
 shadow.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => selectView(tab.dataset.view));
 });
-conditionerForm.addEventListener("submit", saveConditionerFromForm);
-shadow.querySelector(".conditioner-add-step").addEventListener("click", addConditionerActionRow);
-shadow.querySelector(".conditioner-add-safety-step").addEventListener("click", addConditionerSafetyRow);
-addConditionerActionRow();
+setupExecutionParameterUI();
+shadow.querySelector(".execution-parameter-create").addEventListener("click", () => {
+  resetExecutionParameterForm();
+  selectView("parameters");
+});
 shadow.querySelectorAll(".simulation-tab").forEach((tab, index, tabs) => {
   tab.addEventListener("click", () => selectSimulationWindow(tab.dataset.simulationTab));
   tab.addEventListener("keydown", (event) => {
@@ -764,10 +768,13 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     walletAddress = changes[WALLET_KEY].newValue || "";
     walletInput.value = walletAddress;
   }
-  if (changes[CONDITIONERS_KEY]) {
-    conditioners = Array.isArray(changes[CONDITIONERS_KEY].newValue)
-      ? changes[CONDITIONERS_KEY].newValue : [];
-    renderConditioners();
+  if (changes[EXECUTION_PARAMETERS_KEY]) {
+    executionParameters = normalizeExecutionParameters(changes[EXECUTION_PARAMETERS_KEY].newValue);
+    renderExecutionParameters();
+  }
+  if (changes[EXECUTION_PARAMETER_FAVORITES_KEY]) {
+    executionParameterFavorites = normalizeExecutionParameters(changes[EXECUTION_PARAMETER_FAVORITES_KEY].newValue);
+    renderExecutionParameters();
   }
   if ([SIMULATION_ACCOUNT_KEY, SIMULATION_ORDERS_KEY, SIMULATION_LEDGER_KEY]
     .some((key) => changes[key])) {
@@ -788,8 +795,8 @@ migrateMarketAgnosticStorage().then(async (stored) => {
   favorites = Array.isArray(stored[FAVORITES_KEY]) ? stored[FAVORITES_KEY] : [];
   archivedRules = Array.isArray(stored[ARCHIVE_KEY]) ? stored[ARCHIVE_KEY] : [];
   walletAddress = typeof stored[WALLET_KEY] === "string" ? stored[WALLET_KEY] : "";
-  conditioners = Array.isArray(stored[CONDITIONERS_KEY]) ? stored[CONDITIONERS_KEY] : [];
-  await migrateStoredConditioners();
+  executionParameters = normalizeExecutionParameters(stored[EXECUTION_PARAMETERS_KEY]);
+  executionParameterFavorites = normalizeExecutionParameters(stored[EXECUTION_PARAMETER_FAVORITES_KEY]);
   walletInput.value = walletAddress;
   let migratedFavorites = false;
   rules = rules.map((rule) => {
@@ -808,8 +815,6 @@ migrateMarketAgnosticStorage().then(async (stored) => {
   });
   renderRules();
   renderArchive();
-  renderConditioners();
-  if (conditionerForm.querySelector(".conditioner-step") === null) addConditionerActionRow();
   try {
     await initializeSimulation();
   } catch (error) {
