@@ -161,6 +161,63 @@ shadow.innerHTML = `
     .execution-parameter-checkbox { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 7px; }
     .execution-parameter-checkbox input { width: auto; margin: 0; }
     .execution-parameter-form [type="submit"] { min-height: 40px; }
+    .execution-parameter-builder { display: grid; width: min(900px, 100%); min-height: 460px; grid-template-columns: minmax(230px, .82fr) minmax(0, 1.18fr); margin: 0 auto; overflow: hidden; border: 1px solid #e1e8e2; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #17211b0a; }
+    .execution-parameter-flow { display: flex; min-width: 0; flex-direction: column; padding: 22px 18px; background: linear-gradient(155deg, #f3f8f4, #f8faf8 62%, #eef5f0); }
+    .execution-parameter-flow-kicker { display: inline-flex; align-items: center; gap: 7px; color: #78827b; font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+    .execution-parameter-flow-kicker::before { width: 7px; height: 7px; border-radius: 50%; background: #087c3b; box-shadow: 0 0 0 3px #087c3b18; content: ""; }
+    .execution-parameter-flow h2 { margin: 13px 0 5px; font-size: 20px; letter-spacing: -.025em; }
+    .execution-parameter-flow-intro { max-width: 300px; margin: 0; color: #78827b; font-size: 11px; line-height: 1.55; }
+    .execution-parameter-flow-track { display: grid; gap: 0; margin-top: 22px; }
+    .execution-parameter-flow-node { position: relative; z-index: 1; display: flex; min-width: 0; align-items: center; gap: 10px; padding: 10px; border: 1px solid #e0e8e2; border-radius: 11px; background: #fff; box-shadow: 0 3px 8px #17211b08; }
+    .execution-parameter-flow-index { display: grid; width: 27px; height: 27px; flex: 0 0 27px; place-items: center; border: 1px solid #dfe6e0; border-radius: 8px; background: #f7f9f7; color: #657168; font-size: 9px; font-weight: 800; }
+    .execution-parameter-flow-copy { display: grid; min-width: 0; gap: 2px; }
+    .execution-parameter-flow-copy small { color: #78827b; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+    .execution-parameter-flow-copy strong { color: #26332a; font-size: 11px; }
+    .execution-parameter-flow-connector { position: relative; height: 19px; margin-left: 22px; border-left: 1px solid #cbd9ce; }
+    .execution-parameter-flow-connector::after { position: absolute; bottom: -1px; left: -3px; width: 5px; height: 5px; border-right: 1px solid #aebdb2; border-bottom: 1px solid #aebdb2; transform: rotate(45deg); content: ""; }
+    .execution-parameter-type-panel { padding: 10px; border: 1px solid #dfe8e1; border-radius: 11px; background: #fff; box-shadow: 0 3px 8px #17211b08; }
+    .execution-parameter-type-panel-heading { margin: 0 2px 6px; color: #435047; font-size: 10px; font-weight: 750; }
+    .execution-parameter-builder .execution-parameter-type-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; margin: 0; }
+    .execution-parameter-builder .execution-parameter-type-option { padding: 8px; border-color: transparent; border-radius: 8px; background: transparent; }
+    .execution-parameter-builder .execution-parameter-type-option:hover:not(:disabled) { border-color: #e2ebe4; background: #f8fbf8; }
+    .execution-parameter-builder .execution-parameter-type-option[aria-pressed="true"] { border-color: #b7d6c1; background: #edf7f0; box-shadow: inset 3px 0 #087c3b; }
+    .execution-parameter-builder .execution-parameter-type-copy strong { font-size: 10px; }
+    .execution-parameter-builder .execution-parameter-type-copy small { font-size: 9px; }
+    .execution-parameter-flow-explanation { display: flex; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid #e0e8e2; border-radius: 10px; background: #ffffffc7; }
+    .execution-parameter-flow-explanation p { margin: 3px 0 0; color: #78827b; font-size: 9px; line-height: 1.45; }
+    .execution-parameter-flow-note { display: flex; align-items: flex-start; gap: 8px; margin-top: auto; padding: 10px; border: 1px solid #e0e8e2; border-radius: 9px; background: #ffffffa8; color: #78827b; font-size: 9px; line-height: 1.5; }
+    .execution-parameter-flow-note span { display: grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border-radius: 50%; background: #e8f4ec; color: #087c3b; font-size: 10px; font-weight: 800; }
+    .execution-parameter-editor { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
+    .execution-parameter-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .execution-parameter-editor-heading small { display: block; margin-bottom: 4px; color: #78827b; font-size: 8px; font-weight: 800; letter-spacing: .12em; }
+    .execution-parameter-editor-heading h2 { margin: 0; font-size: 16px; }
+    .execution-parameter-editor-badge { flex: 0 0 auto; padding: 5px 8px; border: 1px solid #e1e8e2; border-radius: 999px; background: #f7f9f7; color: #657168; font-size: 9px; font-weight: 700; }
+    .execution-parameter-form { width: 100%; max-width: none; margin: 0; gap: 13px; }
+    .execution-parameter-form > label:not(.execution-parameter-effect) { gap: 6px; color: #435047; font-size: 10px; font-weight: 700; }
+    .execution-parameter-form input, .execution-parameter-form select { min-height: 38px; border-color: #dfe6e0; border-radius: 8px; background: #fbfcfb; font-size: 11px; }
+    .execution-parameter-form input:focus, .execution-parameter-form select:focus { border-color: #75ad86; outline: 3px solid #087c3b16; }
+    .execution-parameter-condition { padding: 12px; border: 1px solid #e6ebe7; border-radius: 11px; background: #fafcfa; }
+    .execution-parameter-editor-section-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: #435047; font-size: 10px; font-weight: 750; }
+    .execution-parameter-editor-section-heading span { display: grid; width: 19px; height: 19px; place-items: center; border-radius: 6px; background: #e8f4ec; color: #087c3b; font-size: 8px; font-weight: 800; }
+    .execution-parameter-expression { align-items: end; gap: 8px; }
+    .execution-parameter-expression > span, .execution-parameter-expression > strong { align-self: end; padding: 0 0 9px; color: #657168; font-size: 10px; }
+    .execution-parameter-expression > strong { color: #26332a; }
+    .execution-parameter-expression label { flex: 1 1 90px; min-width: 82px; gap: 5px; color: #78827b; font-size: 9px; font-weight: 650; }
+    .execution-parameter-effect { margin: 0; gap: 6px; color: #435047; font-size: 10px; font-weight: 700; }
+    .execution-parameter-form .save-actions { gap: 7px; margin-top: 2px; }
+    .execution-parameter-form .save-action { min-height: 40px; padding: 8px; font-size: 10px; }
+    .execution-parameter-form .save-action.favorite { border: 1px solid #f1dfc7; background: #fff9f0; color: #a96108; }
+    .execution-parameter-form .save-action.favorite:hover { background: #fff2df; }
+    .execution-parameter-form .execution-parameter-cancel { padding: 7px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+    .execution-parameter-form [hidden] { display: none; }
+    @media (max-width: 700px) {
+      .execution-parameter-builder { grid-template-columns: minmax(0, 1fr); }
+      .execution-parameter-flow { padding: 17px; }
+      .execution-parameter-flow h2 { margin-top: 8px; font-size: 17px; }
+      .execution-parameter-flow-track { margin-top: 14px; }
+      .execution-parameter-flow-note { margin-top: 14px; }
+      .execution-parameter-editor { padding: 17px; }
+    }
     .rule, .template { position: relative; display: grid; height: 64px; min-height: 64px; grid-template-rows: minmax(0, 1fr) auto; gap: 5px; padding: 6px 7px; border: 1px solid #e1e7e2; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px #17211b08; cursor: grab; }
     .rule:active, .template:active { cursor: grabbing; }
     .rule[aria-grabbed="true"], .template[aria-grabbed="true"] { opacity: .5; }
@@ -414,20 +471,53 @@ shadow.innerHTML = `
       </form>
     </div>
     <div id="panel-parameters" class="view" data-panel="parameters" role="tabpanel" aria-labelledby="execution-parameters-tab" hidden>
-      <h2 class="execution-parameter-form-heading">Criar parâmetro</h2>
-      <p class="hint">Escolha um tipo de parâmetro e defina a condição e a ação.</p>
-      <div class="execution-parameter-type-options" role="group" aria-label="Tipo de parâmetro"></div>
-      <form class="execution-parameter-form">
-        <input name="type" type="hidden" value="market_time">
-        <label>Nome (opcional)<input name="name" maxlength="60" placeholder="Ex.: Evitar os últimos 30 segundos"></label>
-        <div class="execution-parameter-type-fields"></div>
-        <label class="execution-parameter-effect">Ação<select name="effect"><option value="block">Bloquear</option><option value="allow">Não bloquear</option></select></label>
-        <div class="save-actions">
-          <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
-          <button class="save-action favorite" type="submit" name="parameterAction" value="favorite">Salvar como favorito</button>
-        </div>
-        <button class="execution-parameter-cancel" type="button" hidden>Cancelar edição</button>
-      </form>
+      <div class="execution-parameter-builder">
+        <section class="execution-parameter-flow" aria-label="Fluxo do parâmetro">
+          <div class="execution-parameter-flow-kicker">Construtor de automação</div>
+          <h2>Parâmetros de Execução</h2>
+          <p class="execution-parameter-flow-intro">Monte uma condição para controlar quando suas regras podem ser executadas.</p>
+          <div class="execution-parameter-flow-track">
+            <div class="execution-parameter-flow-node">
+              <span class="execution-parameter-flow-index">01</span>
+              <span class="execution-parameter-flow-copy"><small>SE</small><strong>Escolha uma condição</strong></span>
+            </div>
+            <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
+            <div class="execution-parameter-type-panel">
+              <div class="execution-parameter-type-panel-heading">Tipo de parâmetro</div>
+              <div class="execution-parameter-type-options" role="group" aria-label="Tipo de parâmetro"></div>
+            </div>
+            <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
+            <div class="execution-parameter-flow-explanation">
+              <span class="execution-parameter-flow-index">02</span>
+              <div class="execution-parameter-flow-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
+            </div>
+          </div>
+          <div class="execution-parameter-flow-note"><span aria-hidden="true">i</span> A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
+        </section>
+        <section class="execution-parameter-editor" aria-label="Configuração do parâmetro">
+          <div class="execution-parameter-editor-heading">
+            <div><small>CONFIGURAÇÃO</small><h2 class="execution-parameter-form-heading">Criar parâmetro</h2></div>
+            <span class="execution-parameter-editor-badge">SE / ENTÃO</span>
+          </div>
+          <form class="execution-parameter-form">
+            <input name="type" type="hidden" value="market_time">
+            <label>Nome (opcional)<input name="name" maxlength="60" placeholder="Ex.: Evitar os últimos 30 segundos"></label>
+            <div class="execution-parameter-condition">
+              <div class="execution-parameter-editor-section-heading"><span>01</span>Defina a condição</div>
+              <div class="execution-parameter-type-fields"></div>
+            </div>
+            <div class="execution-parameter-condition">
+              <div class="execution-parameter-editor-section-heading"><span>02</span>O que acontece?</div>
+              <label class="execution-parameter-effect">Ação<select name="effect"><option value="block">Bloquear</option><option value="allow">Não bloquear</option></select></label>
+            </div>
+            <div class="save-actions">
+              <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
+              <button class="save-action favorite" type="submit" name="parameterAction" value="favorite">Salvar como favorito</button>
+            </div>
+            <button class="execution-parameter-cancel" type="button" hidden>Cancelar edição</button>
+          </form>
+        </section>
+      </div>
     </div>
     <div id="panel-rules" class="view" data-panel="rules" role="tabpanel" aria-labelledby="rules-tab" hidden>
       <div class="section-heading"><h2>Regras</h2><span class="count-chip rules-count">0</span></div>
