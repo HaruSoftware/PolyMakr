@@ -340,6 +340,9 @@ shadow.innerHTML = `
     </header>
     <div class="panel-body">
       <nav class="tabs" role="tablist" aria-label="Seções do PolyMakr">
+        <button id="simulation-tab-main" class="tab" type="button" role="tab" data-view="simulation" aria-controls="panel-simulation" aria-label="Simulação" aria-selected="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 6-7"/><path d="M16 6h4v4"/></svg><span>Simulação</span>
+        </button>
         <button id="create-tab" class="tab" type="button" role="tab" data-view="create" aria-controls="panel-create" aria-label="Criar" aria-selected="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Criar</span>
         </button>
@@ -349,14 +352,11 @@ shadow.innerHTML = `
         <button id="analysis-tab" class="tab" type="button" role="tab" data-view="analysis" aria-controls="panel-analysis" aria-label="Análise" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-5 3 3 5-7"/></svg><span>Análise</span>
         </button>
-        <button id="archive-tab" class="tab" type="button" role="tab" data-view="archive" aria-controls="panel-archive" aria-label="Registro" aria-selected="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4H4zM6 9v10h12V9M10 13h4"/></svg><span>Registro</span>
-        </button>
-        <button id="simulation-tab-main" class="tab" type="button" role="tab" data-view="simulation" aria-controls="panel-simulation" aria-label="Simulação" aria-selected="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h17"/><path d="m7 15 4-4 3 2 6-7"/><path d="M16 6h4v4"/></svg><span>Simulação</span>
-        </button>
         <button id="conditioners-tab" class="tab" type="button" role="tab" data-view="conditioners" aria-controls="panel-conditioners" aria-label="Condicionadores" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6M14 6h6M4 12h2M10 12h10M4 18h8M16 18h4"/><circle cx="12" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="18" r="2"/></svg><span>Condicionadores</span>
+        </button>
+        <button id="archive-tab" class="tab" type="button" role="tab" data-view="archive" aria-controls="panel-archive" aria-label="Registro" aria-selected="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4H4zM6 9v10h12V9M10 13h4"/></svg><span>Registro</span>
         </button>
         <button id="settings-tab" class="tab" type="button" role="tab" data-view="settings" aria-controls="panel-settings" aria-label="Configurações" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 1.7Z"/></svg><span>Configurações</span>
