@@ -167,11 +167,12 @@ function valueDifferenceResult(parameter) {
 }
 
 function describeValueDifferenceParameter(parameter) {
-  return `Se diferença (preço atual − Price To Beat) ${parameter.comparison} ${formatValueDifference(parameter.threshold, parameter.unit)}: ${parameter.effect === "block" ? "bloquear" : "não bloquear"}.`;
+  const effectLabel = { block: "bloquear", block_buy: "bloquear compras", block_sell: "bloquear vendas", block_both: "bloquear compras e vendas" }[parameter.effect] || "bloquear";
+  return `Se diferença (preço atual − Price To Beat) ${parameter.comparison} ${formatValueDifference(parameter.threshold, parameter.unit)}: ${effectLabel}.`;
 }
 
 function summarizeValueDifferenceParameters(parameters) {
-  const blockingParameters = parameters.filter((parameter) => parameter.effect === "block");
+  const blockingParameters = parameters.filter((parameter) => ["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect));
   if (!blockingParameters.length) return null;
   const prices = readMarketValueDifference();
   if (prices.error) {
@@ -205,13 +206,15 @@ function resetValueDifferenceSnapshot(marketKey) {
 
 registerExecutionParameterType("value_difference", {
   label: "Diferença de valor",
-  icon: "±",
+  icon: "dollar",
   helpText: "Preço atual menos Price To Beat, com sinal.",
   normalize: normalizeValueDifferenceParameter,
   readFields: readValueDifferenceFields,
   renderFields: renderValueDifferenceFields,
-  defaultName: (parameter, effect) =>
-    `Diferença ${parameter.comparison} ${formatValueDifference(parameter.threshold, parameter.unit)} · ${effect === "block" ? "Bloquear" : "Não bloquear"}`,
+  defaultName: (parameter, effect) => {
+    const effectLabel = { block: "Bloquear", block_buy: "Bloquear Compras", block_sell: "Bloquear Vendas", block_both: "Bloquear Ambos" }[effect] || "Bloquear";
+    return `Diferença ${parameter.comparison} ${formatValueDifference(parameter.threshold, parameter.unit)} · ${effectLabel}`;
+  },
   describe: describeValueDifferenceParameter,
   evaluate: (parameter) => {
     const result = valueDifferenceResult(parameter);

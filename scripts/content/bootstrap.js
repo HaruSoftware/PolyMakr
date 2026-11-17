@@ -60,7 +60,7 @@ shadow.innerHTML = `
     .analysis-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
     .analysis-metric { min-width: 0; padding: 11px; border: 1px solid #e6ebe7; border-radius: 10px; background: #f8faf8; }
     .analysis-metric span { display: block; color: #78827b; font-size: 10px; }
-    .analysis-metric strong { display: block; margin-top: 5px; overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+    .analysis-metric strong { display: block; margin-top: 5px; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -.01em; }
     .analysis-metric small { display: block; margin-top: 4px; color: #78827b; font-size: 9px; line-height: 1.4; }
     .analysis-up { color: #087c3b; }
     .analysis-down { color: #a33b2e; }
@@ -84,9 +84,20 @@ shadow.innerHTML = `
     form { display: grid; gap: 9px; }
     label { display: grid; gap: 4px; color: #59645d; font-size: 11px; }
     input, select {
-      width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #d9e0db;
+      width: 100%; min-width: 0; padding: 8px 32px 8px 9px; border: 1px solid #d9e0db;
       border-radius: 8px; background: #fff; color: #17211b; font: inherit; font-size: 12px;
+      appearance: auto;
     }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2359645d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 15px;
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 30px;
+    }
+    input { padding: 8px 9px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .market-outcomes { display: grid; gap: 9px; max-height: 180px; overflow: auto; }
     .market-group { display: grid; gap: 5px; }
@@ -149,6 +160,12 @@ shadow.innerHTML = `
     .execution-parameter-dot.blocking { background: #c4312b; }
     .execution-parameter-dot.unknown { background: #d78a13; }
     .execution-parameter-dot.favorite { background: #aab4ac; }
+    .execution-parameter-effect-badge { flex: 0 0 auto; }
+    .execution-parameter-effect-icon { width: 18px; height: 18px; flex: 0 0 18px; }
+    .execution-parameter-effect-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+    .execution-parameter-effect-icon.block-buy { background: #e8efff; color: #3156a8; }
+    .execution-parameter-effect-icon.block-sell { background: #fde9e8; color: #a33b2e; }
+    .execution-parameter-effect-icon.block-both { background: #fff3d8; color: #8a5a00; }
     .execution-parameter-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
     .execution-parameter-actions button { padding: 3px 5px; border: 1px solid #e1e6e2; border-radius: 5px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
     .execution-parameter-actions button.danger { border-color: #f0d7d4; color: #a33b2e; }
@@ -195,7 +212,7 @@ shadow.innerHTML = `
     .execution-parameter-editor-badge { flex: 0 0 auto; padding: 5px 8px; border: 1px solid #e1e8e2; border-radius: 999px; background: #f7f9f7; color: #657168; font-size: 9px; font-weight: 700; }
     .execution-parameter-form { width: 100%; max-width: none; margin: 0; gap: 13px; }
     .execution-parameter-form > label:not(.execution-parameter-effect) { gap: 6px; color: #435047; font-size: 10px; font-weight: 700; }
-    .execution-parameter-form input, .execution-parameter-form select { min-height: 38px; border-color: #dfe6e0; border-radius: 8px; background: #fbfcfb; font-size: 11px; }
+    .execution-parameter-form input, .execution-parameter-form select { min-height: 38px; border-color: #dfe6e0; border-radius: 8px; background: #fbfcfb; font-size: 11px; padding-right: 30px; }
     .execution-parameter-form input:focus, .execution-parameter-form select:focus { border-color: #75ad86; outline: 3px solid #087c3b16; }
     .execution-parameter-condition { padding: 12px; border: 1px solid #e6ebe7; border-radius: 11px; background: #fafcfa; }
     .execution-parameter-editor-section-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: #435047; font-size: 10px; font-weight: 750; }
@@ -510,7 +527,7 @@ shadow.innerHTML = `
             </div>
             <div class="execution-parameter-condition">
               <div class="execution-parameter-editor-section-heading"><span>02</span>O que acontece?</div>
-              <label class="execution-parameter-effect">Ação<select name="effect"><option value="block">Bloquear</option><option value="allow">Não bloquear</option></select></label>
+              <label class="execution-parameter-effect">Ação<select name="effect"><option value="block_both">🔒 Bloquear Compras e Vendas</option><option value="block_buy">🔒↑ Bloquear apenas Compras</option><option value="block_sell">🔒↓ Bloquear apenas Vendas</option></select></label>
             </div>
             <div class="save-actions">
               <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>

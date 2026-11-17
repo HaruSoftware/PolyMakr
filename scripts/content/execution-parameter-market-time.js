@@ -43,7 +43,8 @@ function evaluateMarketTimeParameter(parameter) {
 }
 
 function describeMarketTimeParameter(parameter) {
-  return `Se tempo restante ${parameter.comparison} ${parameter.seconds} segundos: ${parameter.effect === "block" ? "bloquear" : "não bloquear"}.`;
+  const effectLabel = { block: "bloquear", block_buy: "bloquear compras", block_sell: "bloquear vendas", block_both: "bloquear compras e vendas" }[parameter.effect] || "bloquear";
+  return `Se tempo restante ${parameter.comparison} ${parameter.seconds} segundos: ${effectLabel}.`;
 }
 
 function renderMarketTimeFields(container, parameter = null) {
@@ -88,7 +89,7 @@ function readMarketTimeFields(data) {
 }
 
 function summarizeMarketTimeParameters(parameters) {
-  const blockingParameters = parameters.filter((parameter) => parameter.effect === "block");
+  const blockingParameters = parameters.filter((parameter) => ["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect));
   if (!blockingParameters.length) return null;
   if (!activeMarketKey) {
     return { text: "Abra um mercado", error: false };
@@ -130,7 +131,7 @@ function resetMarketTimeParameter(marketKey) {
 
 async function refreshMarketTimeParameter() {
   if (!executionParameters.some((parameter) =>
-    parameter.type === "market_time" && parameter.effect === "block"
+    parameter.type === "market_time" && ["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect)
   )) {
     executionParameterMarketTime = {
       marketKey: activeMarketKey,
@@ -226,8 +227,10 @@ registerExecutionParameterType("market_time", {
   normalize: normalizeMarketTimeParameter,
   readFields: readMarketTimeFields,
   renderFields: renderMarketTimeFields,
-  defaultName: (parameter, effect) =>
-    `Tempo ${parameter.comparison} ${parameter.seconds}s · ${effect === "block" ? "Bloquear" : "Não bloquear"}`,
+  defaultName: (parameter, effect) => {
+    const effectLabel = { block: "Bloquear", block_buy: "Bloquear Compras", block_sell: "Bloquear Vendas", block_both: "Bloquear Ambos" }[effect] || "Bloquear";
+    return `Tempo ${parameter.comparison} ${parameter.seconds}s · ${effectLabel}`;
+  },
   describe: describeMarketTimeParameter,
   evaluate: evaluateMarketTimeParameter,
   refresh: refreshMarketTimeParameter,

@@ -57,9 +57,68 @@ function createExecutionParameterTypeIcon(type) {
     hands.setAttribute("d", "M8 4.5V8l2.5 1.5");
     svg.append(face, hands);
     icon.append(svg);
+  } else if (definition?.icon === "dollar") {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("focusable", "false");
+    const path = document.createElementNS(svg.namespaceURI, "path");
+    path.setAttribute("d", "M8 2v12M5.5 11c0 1.1.9 2 2.5 2s2.5-.9 2.5-2-1-1.6-2.5-2-2.5-.9-2.5-2 .9-2 2.5-2 2.5.9 2.5 2");
+    svg.append(path);
+    icon.append(svg);
   } else {
     icon.textContent = definition?.icon || "?";
   }
+  return icon;
+}
+
+function createEffectIcon(effect) {
+  const icon = document.createElement("span");
+  icon.className = "action-icon execution-parameter-effect-icon";
+  icon.setAttribute("aria-hidden", "true");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("focusable", "false");
+  if (effect === "block_buy") {
+    // Lock + seta para cima (buy)
+    const lock = document.createElementNS(svg.namespaceURI, "rect");
+    lock.setAttribute("x", "4"); lock.setAttribute("y", "7");
+    lock.setAttribute("width", "8"); lock.setAttribute("height", "7");
+    lock.setAttribute("rx", "1.5");
+    const shackle = document.createElementNS(svg.namespaceURI, "path");
+    shackle.setAttribute("d", "M5.5 7V5a2.5 2.5 0 0 1 5 0v2");
+    const arrow = document.createElementNS(svg.namespaceURI, "path");
+    arrow.setAttribute("d", "M8 11.5V9.5m0 0-1 1m1-1 1 1");
+    svg.append(lock, shackle, arrow);
+    icon.title = "Bloquear Compras";
+    icon.className += " block-buy";
+  } else if (effect === "block_sell") {
+    // Lock + seta para baixo (sell)
+    const lock = document.createElementNS(svg.namespaceURI, "rect");
+    lock.setAttribute("x", "4"); lock.setAttribute("y", "7");
+    lock.setAttribute("width", "8"); lock.setAttribute("height", "7");
+    lock.setAttribute("rx", "1.5");
+    const shackle = document.createElementNS(svg.namespaceURI, "path");
+    shackle.setAttribute("d", "M5.5 7V5a2.5 2.5 0 0 1 5 0v2");
+    const arrow = document.createElementNS(svg.namespaceURI, "path");
+    arrow.setAttribute("d", "M8 9.5v2m0 0-1-1m1 1 1-1");
+    svg.append(lock, shackle, arrow);
+    icon.title = "Bloquear Vendas";
+    icon.className += " block-sell";
+  } else {
+    // Lock padrão (block_both / block)
+    const lock = document.createElementNS(svg.namespaceURI, "rect");
+    lock.setAttribute("x", "3.5"); lock.setAttribute("y", "7");
+    lock.setAttribute("width", "9"); lock.setAttribute("height", "7");
+    lock.setAttribute("rx", "1.5");
+    const shackle = document.createElementNS(svg.namespaceURI, "path");
+    shackle.setAttribute("d", "M5.5 7V5a2.5 2.5 0 0 1 5 0v2");
+    const dot = document.createElementNS(svg.namespaceURI, "circle");
+    dot.setAttribute("cx", "8"); dot.setAttribute("cy", "10.5"); dot.setAttribute("r", "1");
+    svg.append(lock, shackle, dot);
+    icon.title = effect === "block_both" ? "Bloquear Compras e Vendas" : "Bloquear";
+    icon.className += " block-both";
+  }
+  icon.append(svg);
   return icon;
 }
 
@@ -108,7 +167,9 @@ function normalizeExecutionParameter(parameter) {
   if (!parameter || typeof parameter !== "object") return null;
   const type = typeof parameter.type === "string" && parameter.type ? parameter.type : "market_time";
   const definition = executionParameterTypes.get(type);
-  if (!["block", "allow"].includes(parameter.effect)) return null;
+  const validEffects = ["block", "block_buy", "block_sell", "block_both"];
+  // Migração: "allow" era uma opção antiga — descartar silenciosamente
+  if (!validEffects.includes(parameter.effect)) return null;
   if (!definition) {
     return {
       ...parameter,
@@ -149,7 +210,7 @@ function executionParameterDescription(parameter) {
 }
 
 function executionParameterStatus(parameter) {
-  if (parameter.effect !== "block") {
+  if (!["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect)) {
     return { state: "released", label: "Liberado", title: "Este parâmetro não bloqueia regras." };
   }
   const definition = executionParameterType(parameter);
@@ -160,7 +221,7 @@ function executionParameterStatus(parameter) {
 
 async function refreshExecutionParameterData() {
   const types = new Set(executionParameters
-    .filter((parameter) => parameter.effect === "block")
+    .filter((parameter) => ["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect))
     .map((parameter) => parameter.type || "market_time"));
   await Promise.all([...types].map((type) =>
     executionParameterTypes.get(type)?.refresh?.()
@@ -175,7 +236,9 @@ function resetExecutionParameterData(marketKey) {
 
 async function getExecutionParameterDecision(rule) {
   if (rule.honorExecutionParameters !== true) return { blocked: false };
-  const blockingParameters = executionParameters.filter((parameter) => parameter.effect === "block");
+  const blockingParameters = executionParameters.filter((parameter) =>
+    ["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect)
+  );
   if (!blockingParameters.length) return { blocked: false };
 
   const unavailable = [];
@@ -186,6 +249,9 @@ async function getExecutionParameterDecision(rule) {
       unavailable.push(`O tipo de parâmetro "${type}" não está disponível.`);
       continue;
     }
+    // Verificar se este parâmetro se aplica ao lado da regra
+    const appliesToRule = doesParameterApplyToRule(parameter, rule);
+    if (!appliesToRule) continue;
     if (definition.refresh) await definition.refresh();
     const evaluation = definition.evaluate(parameter, rule);
     if (evaluation.state === "blocking") {
@@ -198,6 +264,14 @@ async function getExecutionParameterDecision(rule) {
   return unavailable.length
     ? { blocked: true, error: [...new Set(unavailable)].join(" ") }
     : { blocked: false };
+}
+
+function doesParameterApplyToRule(parameter, rule) {
+  const effect = parameter.effect;
+  if (effect === "block" || effect === "block_both") return true;
+  if (effect === "block_buy") return rule?.side === "buy";
+  if (effect === "block_sell") return rule?.side === "sell";
+  return true;
 }
 
 function createExecutionParameterBlockedError(decision) {
@@ -278,7 +352,7 @@ function renderExecutionParameterSummary() {
     if (summary) summaries.push(summary);
   }
   const unavailableTypes = [...new Set(executionParameters
-    .filter((parameter) => parameter.effect === "block"
+    .filter((parameter) => ["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect)
       && !executionParameterTypes.has(parameter.type || "market_time"))
     .map((parameter) => parameter.type || "market_time"))];
   if (unavailableTypes.length) {
@@ -310,6 +384,10 @@ function createExecutionParameterCard(parameter, isFavorite) {
   name.textContent = parameter.name;
   name.title = `${parameter.name} · ${executionParameterDescription(parameter)}`;
   identity.append(name);
+
+  const effectIcon = createEffectIcon(parameter.effect || "block");
+  effectIcon.className += " execution-parameter-effect-badge";
+  effectIcon.setAttribute("aria-label", effectIcon.title);
 
   const status = document.createElement("span");
   if (isFavorite) {
@@ -346,7 +424,7 @@ function createExecutionParameterCard(parameter, isFavorite) {
   remove.addEventListener("click", () => removeExecutionParameter(parameter, isFavorite));
   actions.append(edit, remove);
 
-  card.append(identity, status, actions);
+  card.append(identity, effectIcon, status, actions);
   return card;
 }
 
@@ -421,7 +499,7 @@ function readExecutionParameterForm() {
   const effect = data.get("effect");
   const type = data.get("type") || "market_time";
   const definition = executionParameterTypes.get(type);
-  if (!definition || !["block", "allow"].includes(effect)) {
+  if (!definition || !["block", "block_buy", "block_sell", "block_both"].includes(effect)) {
     showToast("Confira o parâmetro", "Escolha um tipo e uma ação válidos.", "error");
     return null;
   }
@@ -539,12 +617,16 @@ function editExecutionParameter(parameter, isFavorite) {
   const definition = executionParameterTypes.get(type);
   const hasGeneratedName = [parameter.comparison, "<=", ">="]
     .filter((comparison, index, comparisons) => comparisons.indexOf(comparison) === index)
-    .some((comparison) => definition.defaultName({ ...parameter, comparison }, parameter.effect) === parameter.name);
+    .some((comparison) =>
+      ["block", "block_buy", "block_sell", "block_both"].some((effect) =>
+        definition.defaultName({ ...parameter, comparison }, effect) === parameter.name
+      )
+    );
   form.elements.namedItem("name").value = hasGeneratedName ? "" : parameter.name;
   form.elements.namedItem("type").value = type;
   renderExecutionParameterTypeOptions();
   renderExecutionParameterTypeFields(parameter);
-  form.elements.effect.value = parameter.effect;
+  form.elements.effect.value = parameter.effect || "block_both";
   updateExecutionParameterFormMode();
   selectView("parameters");
   form.elements.name.focus();
