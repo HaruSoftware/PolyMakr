@@ -209,6 +209,18 @@ function executionParameterDescription(parameter) {
     : "Tipo de parâmetro indisponível.";
 }
 
+function compactExecutionParameterValue(parameter) {
+  const type = parameter.type || "market_time";
+  if (type === "market_time") return `${parameter.seconds}s`;
+  if (type === "value_difference") {
+    const value = new Intl.NumberFormat("pt-BR", {
+      maximumFractionDigits: 4
+    }).format(parameter.threshold);
+    return `${value}${parameter.unit === "percentage" ? "%" : "$"}`;
+  }
+  return parameter.name;
+}
+
 function executionParameterStatus(parameter) {
   if (!["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect)) {
     return { state: "released", label: "Liberado", title: "Este parâmetro não bloqueia regras." };
@@ -378,10 +390,12 @@ function createExecutionParameterCard(parameter, isFavorite) {
 
   const identity = document.createElement("div");
   identity.className = "execution-parameter-identity";
-  identity.append(createExecutionParameterTypeIcon(parameter.type || "market_time"));
   const name = document.createElement("strong");
   name.className = "execution-parameter-name";
-  name.textContent = parameter.name;
+  const value = compactExecutionParameterValue(parameter);
+  name.textContent = isFavorite && ["<=", ">="].includes(parameter.comparison)
+    ? `${parameter.comparison} ${value}`
+    : value;
   name.title = `${parameter.name} · ${executionParameterDescription(parameter)}`;
   identity.append(name);
 
@@ -390,11 +404,7 @@ function createExecutionParameterCard(parameter, isFavorite) {
   effectIcon.setAttribute("aria-label", effectIcon.title);
 
   const status = document.createElement("span");
-  if (isFavorite) {
-    status.className = "execution-parameter-dot favorite";
-    status.setAttribute("aria-label", "Favorito, ainda não aplicado");
-    status.title = executionParameterDescription(parameter);
-  } else {
+  if (!isFavorite) {
     const result = executionParameterStatus(parameter);
     status.className = `execution-parameter-dot ${result.state}`;
     status.setAttribute("aria-label", result.label);
@@ -406,25 +416,30 @@ function createExecutionParameterCard(parameter, isFavorite) {
   if (isFavorite) {
     const add = document.createElement("button");
     add.type = "button";
-    add.textContent = "Adicionar";
+    add.textContent = "+";
+    add.title = "Adicionar";
     add.setAttribute("aria-label", `Adicionar ${parameter.name} aos parâmetros ativos`);
     add.addEventListener("click", () => activateExecutionParameterFavorite(parameter));
     actions.append(add);
   }
   const edit = document.createElement("button");
   edit.type = "button";
-  edit.textContent = "Editar";
+  edit.textContent = "✎";
+  edit.title = "Editar";
   edit.setAttribute("aria-label", `Editar ${parameter.name}`);
   edit.addEventListener("click", () => editExecutionParameter(parameter, isFavorite));
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "danger";
-  remove.textContent = "Excluir";
+  remove.textContent = "×";
+  remove.title = "Excluir";
   remove.setAttribute("aria-label", `Excluir ${parameter.name}`);
   remove.addEventListener("click", () => removeExecutionParameter(parameter, isFavorite));
   actions.append(edit, remove);
 
-  card.append(identity, effectIcon, status, actions);
+  card.append(identity);
+  if (!isFavorite) card.append(effectIcon, status);
+  card.append(actions);
   return card;
 }
 

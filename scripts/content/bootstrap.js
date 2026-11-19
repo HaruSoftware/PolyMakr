@@ -135,17 +135,14 @@ shadow.innerHTML = `
     .execution-parameters-board { display: grid; flex: 0 0 128px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-height: 0; margin-top: 6px; }
     .execution-parameter-lane { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: 8px; border: 1px solid #e6ebe7; border-radius: 10px; background: #f7f9f7; }
     .execution-parameter-lane .lane-heading { margin-bottom: 6px; }
-    .execution-parameter-status { min-width: 0; overflow: hidden; color: #657168; font-size: 9px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+    .execution-parameter-status { display: none; }
     .execution-parameter-status.error { color: #a33b2e; }
-    .execution-parameters-active { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-content: flex-start; gap: 5px; min-height: 0; overflow: auto; }
-    .execution-parameters-favorites { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); grid-auto-rows: min-content; align-content: start; gap: 5px; min-height: 0; overflow: auto; }
+    .execution-parameters-active, .execution-parameters-favorites { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 32px; align-content: start; gap: 5px; min-height: 0; overflow: auto; }
     .execution-parameters-active.drag-over { border-radius: 7px; background: #e8f4ec; }
-    .execution-parameter-card { display: flex; min-width: 0; max-width: 100%; min-height: 32px; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid #e1e7e2; border-radius: 7px; background: #fff; cursor: grab; }
-    .execution-parameters-favorites .execution-parameter-card { width: 100%; min-width: max-content; max-width: none; }
+    .execution-parameter-card { display: flex; width: 100%; min-width: 0; max-width: 100%; height: 32px; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid #e1e7e2; border-radius: 7px; background: #fff; cursor: grab; }
     .execution-parameter-card[aria-grabbed="true"] { opacity: .5; }
     .execution-parameter-identity { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 6px; }
-    .execution-parameter-name { display: block; min-width: 0; max-width: 180px; overflow: hidden; color: #435047; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-    .execution-parameters-favorites .execution-parameter-name { max-width: none; }
+    .execution-parameter-name { display: block; min-width: 0; overflow: hidden; color: #435047; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
     .execution-parameter-type-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 12px; }
     .execution-parameter-type-option { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid #dfe6e0; border-radius: 9px; background: #fff; color: #435047; cursor: pointer; font: inherit; text-align: left; }
     .execution-parameter-type-option[aria-pressed="true"] { border-color: #087c3b; background: #e8f4ec; }
@@ -167,7 +164,7 @@ shadow.innerHTML = `
     .execution-parameter-effect-icon.block-sell { background: #fde9e8; color: #a33b2e; }
     .execution-parameter-effect-icon.block-both { background: #fff3d8; color: #8a5a00; }
     .execution-parameter-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
-    .execution-parameter-actions button { padding: 3px 5px; border: 1px solid #e1e6e2; border-radius: 5px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 9px; font-weight: 650; }
+    .execution-parameter-actions button { display: grid; width: 20px; height: 20px; flex: 0 0 20px; place-items: center; padding: 0; border: 1px solid #e1e6e2; border-radius: 5px; background: #fff; color: #435047; cursor: pointer; font: inherit; font-size: 11px; font-weight: 650; }
     .execution-parameter-actions button.danger { border-color: #f0d7d4; color: #a33b2e; }
     .execution-parameter-empty { align-self: flex-start; margin: 2px; font-size: 10px; }
     .execution-parameter-form { max-width: 560px; margin: 0 auto; }
