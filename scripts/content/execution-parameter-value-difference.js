@@ -14,7 +14,8 @@ function normalizeValueDifferenceParameter(parameter) {
   return {
     comparison: parameter.comparison,
     threshold,
-    unit: parameter.unit
+    unit: parameter.unit,
+    differenceMode: parameter.differenceMode === "absolute" ? "absolute" : "signed"
   };
 }
 
@@ -23,7 +24,8 @@ function readValueDifferenceFields(data) {
   return {
     comparison: data.get("comparison"),
     threshold: rawThreshold === "" ? NaN : Number(rawThreshold),
-    unit: data.get("unit")
+    unit: data.get("unit"),
+    differenceMode: data.get("differenceMode")
   };
 }
 
@@ -55,12 +57,12 @@ function renderValueDifferenceFields(container, parameter = null) {
   threshold.value = String(parameter?.threshold ?? 0);
   threshold.required = true;
   const thresholdLabel = document.createElement("label");
-  thresholdLabel.textContent = "Limite (com sinal)";
+  thresholdLabel.textContent = "Limite";
   thresholdLabel.append(threshold);
 
   const unit = document.createElement("select");
   unit.name = "unit";
-  for (const [value, label] of [["absolute", "Valor (US$)"], ["percentage", "Percentual (%)"]]) {
+  for (const [value, label] of [["absolute", "US$"], ["percentage", "%"]]) {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
@@ -71,7 +73,27 @@ function renderValueDifferenceFields(container, parameter = null) {
   unitLabel.textContent = "Unidade";
   unitLabel.append(unit);
 
-  expression.append(prefix, subject, comparisonLabel, thresholdLabel, unitLabel);
+  const differenceMode = document.createElement("select");
+  differenceMode.name = "differenceMode";
+  for (const [value, label] of [["signed", "Com sinal"], ["absolute", "Absoluta"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    differenceMode.append(option);
+  }
+  differenceMode.value = parameter?.differenceMode === "absolute" ? "absolute" : "signed";
+  threshold.min = differenceMode.value === "absolute" ? "0" : "";
+  differenceMode.addEventListener("change", () => {
+    threshold.min = differenceMode.value === "absolute" ? "0" : "";
+  });
+  const differenceModeLabel = document.createElement("label");
+  differenceModeLabel.textContent = "Diferença";
+  differenceModeLabel.append(differenceMode);
+
+  const fields = document.createElement("div");
+  fields.className = "execution-parameter-expression-fields";
+  fields.append(comparisonLabel, thresholdLabel, unitLabel, differenceModeLabel);
+  expression.append(prefix, subject, fields);
   container.append(expression);
 }
 
@@ -149,26 +171,36 @@ function formatValueDifference(value, unit, signed = true) {
 function valueDifferenceResult(parameter) {
   const prices = readMarketValueDifference();
   if (prices.error) return { state: "unknown", error: prices.error };
-  const absoluteDifference = Number((prices.currentPrice - prices.priceToBeat).toFixed(2));
+  const signedDifference = Number((prices.currentPrice - prices.priceToBeat).toFixed(2));
+  const measuredDifference = parameter.differenceMode === "absolute"
+    ? Math.abs(signedDifference)
+    : signedDifference;
   const difference = parameter.unit === "percentage"
-    ? Number(((absoluteDifference / prices.priceToBeat) * 100).toFixed(8))
-    : absoluteDifference;
+    ? Number(((measuredDifference / prices.priceToBeat) * 100).toFixed(8))
+    : measuredDifference;
   const satisfied = parameter.comparison === ">="
     ? difference >= parameter.threshold
     : difference <= parameter.threshold;
-  const detail = formatValueDifference(difference, parameter.unit);
+  const detail = formatValueDifference(difference, parameter.unit, parameter.differenceMode !== "absolute");
+  const differenceDescription = parameter.differenceMode === "absolute"
+    ? "diferença absoluta entre o preço atual e o Price To Beat"
+    : "diferença (atual − Price To Beat)";
   return {
     state: satisfied ? "blocking" : "released",
     label: satisfied ? "Bloqueando" : "Liberado",
     difference,
     detail,
-    title: `Preço atual ${formatValueDifference(prices.currentPrice, "absolute", false)}; Price To Beat ${formatValueDifference(prices.priceToBeat, "absolute", false)}; diferença (atual − Price To Beat) ${detail}. ${describeValueDifferenceParameter(parameter)}`
+    title: `Preço atual ${formatValueDifference(prices.currentPrice, "absolute", false)}; Price To Beat ${formatValueDifference(prices.priceToBeat, "absolute", false)}; ${differenceDescription}: ${detail}. ${describeValueDifferenceParameter(parameter)}`
   };
 }
 
 function describeValueDifferenceParameter(parameter) {
   const effectLabel = { block: "bloquear", block_buy: "bloquear compras", block_sell: "bloquear vendas", block_both: "bloquear compras e vendas" }[parameter.effect] || "bloquear";
-  return `Se diferença (preço atual − Price To Beat) ${parameter.comparison} ${formatValueDifference(parameter.threshold, parameter.unit)}: ${effectLabel}.`;
+  const differenceDescription = parameter.differenceMode === "absolute"
+    ? "diferença absoluta"
+    : "diferença (preço atual − Price To Beat)";
+  const threshold = formatValueDifference(parameter.threshold, parameter.unit, parameter.differenceMode !== "absolute");
+  return `Se ${differenceDescription} ${parameter.comparison} ${threshold}: ${effectLabel}.`;
 }
 
 function summarizeValueDifferenceParameters(parameters) {
@@ -207,13 +239,14 @@ function resetValueDifferenceSnapshot(marketKey) {
 registerExecutionParameterType("value_difference", {
   label: "Diferença de valor",
   icon: "dollar",
-  helpText: "Preço atual menos Price To Beat, com sinal.",
+  helpText: "Compare a diferença com sinal ou em valor absoluto.",
   normalize: normalizeValueDifferenceParameter,
   readFields: readValueDifferenceFields,
   renderFields: renderValueDifferenceFields,
   defaultName: (parameter, effect) => {
     const effectLabel = { block: "Bloquear", block_buy: "Bloquear Compras", block_sell: "Bloquear Vendas", block_both: "Bloquear Ambos" }[effect] || "Bloquear";
-    return `Diferença ${parameter.comparison} ${formatValueDifference(parameter.threshold, parameter.unit)} · ${effectLabel}`;
+    const threshold = formatValueDifference(parameter.threshold, parameter.unit, parameter.differenceMode !== "absolute");
+    return `Diferença ${parameter.comparison} ${threshold} · ${effectLabel}`;
   },
   describe: describeValueDifferenceParameter,
   evaluate: (parameter) => {

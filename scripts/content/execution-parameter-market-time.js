@@ -76,7 +76,10 @@ function renderMarketTimeFields(container, parameter = null) {
   const secondsLabel = document.createElement("label");
   secondsLabel.textContent = "Segundos";
   secondsLabel.append(seconds);
-  expression.append(prefix, subject, comparisonLabel, secondsLabel);
+  const fields = document.createElement("div");
+  fields.className = "execution-parameter-expression-fields";
+  fields.append(comparisonLabel, secondsLabel);
+  expression.append(prefix, subject, fields);
   container.append(expression);
 }
 

@@ -10,7 +10,7 @@ Extensão MV3 para Chrome que adiciona um painel ao Polymarket, acompanha preço
 - `scripts/content/polymarket.js`: integração com os controles e cotações da página.
 - `scripts/content/execution-parameters.js`: registro de tipos, CRUD, favoritos e avaliação agregada dos Parâmetros de Execução.
 - `scripts/content/execution-parameter-market-time.js`: tipo de parâmetro baseado no encerramento do mercado.
-- `scripts/content/execution-parameter-value-difference.js`: tipo de parâmetro baseado na diferença assinada entre o preço atual e o Price To Beat.
+- `scripts/content/execution-parameter-value-difference.js`: tipo de parâmetro baseado na diferença com sinal ou absoluta entre o preço atual e o Price To Beat.
 - `scripts/content/execution.js`: monitoramento de preços e execução da fila.
 - `scripts/content/simulation.js`: carteira virtual, ordens simuladas e acompanhamento do livro público.
 - `scripts/content/views.js`: renderização e edição das listas.
@@ -58,7 +58,8 @@ Cada regra dispara uma única vez no mercado ao qual está vinculada e não é e
 Na aba **Parâmetros**, escolha o tipo antes de preencher a condição. Parâmetros de tempo salvos por versões anteriores continuam sendo tratados como **Tempo do mercado**:
 
 - **Tempo do mercado**: `Se Tempo >=/<= N segundos`. Usa a contagem até o encerramento previsto do mercado; só aceita um horário preciso, não uma data sem hora. O quadro exibe a contagem usada e o horário consultado.
-- **Diferença de valor**: `preço atual − Price To Beat`, com sinal preservado. Positivo significa que o preço atual está acima do Price To Beat; negativo, abaixo. O limite pode ser informado como valor em US$ ou como percentual do Price To Beat. Os dois preços são lidos dos valores exibidos no mercado ativo; se não puderem ser encontrados sem ambiguidade, regras opt-in permanecem bloqueadas.
+- **Diferença de valor**: escolha entre a diferença com sinal (`preço atual − Price To Beat`) e a diferença absoluta (distância entre os valores, sem sinal). Na opção com sinal, positivo significa que o preço atual está acima do Price To Beat; negativo, abaixo. O limite pode ser informado em US$ ou como percentual do Price To Beat. Os dois preços são lidos dos valores exibidos no mercado ativo; se não puderem ser encontrados sem ambiguidade, regras opt-in permanecem bloqueadas.
+- Em **Tipo de bloqueio**, escolha **Compras**, **Vendas** ou **Ambos**; as setas indicam a direção da operação.
 
 Em **Regras**, os parâmetros ativos e seus favoritos aparecem abaixo das listas; qualquer parâmetro ativo satisfeito com **Bloquear** mantém bloqueadas as regras que marcaram **Respeitar Parâmetros de Execução**, tanto em **Em Fila** quanto em **Executar Imediato**. **Não bloquear** não cancela outro parâmetro que esteja bloqueando. Os favoritos de parâmetros ocupam toda a largura disponível e podem rolar quando o conteúdo ultrapassa o espaço.
 

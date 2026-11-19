@@ -209,15 +209,17 @@ shadow.innerHTML = `
     .execution-parameter-editor-badge { flex: 0 0 auto; padding: 5px 8px; border: 1px solid #e1e8e2; border-radius: 999px; background: #f7f9f7; color: #657168; font-size: 9px; font-weight: 700; }
     .execution-parameter-form { width: 100%; max-width: none; margin: 0; gap: 13px; }
     .execution-parameter-form > label:not(.execution-parameter-effect) { gap: 6px; color: #435047; font-size: 10px; font-weight: 700; }
-    .execution-parameter-form input, .execution-parameter-form select { min-height: 38px; border-color: #dfe6e0; border-radius: 8px; background: #fbfcfb; font-size: 11px; padding-right: 30px; }
+    .execution-parameter-form input, .execution-parameter-form select { min-height: 38px; border-color: #dfe6e0; border-radius: 8px; background-color: #fbfcfb; font-size: 11px; }
+    .execution-parameter-form select { padding: 8px 24px 8px 7px; }
     .execution-parameter-form input:focus, .execution-parameter-form select:focus { border-color: #75ad86; outline: 3px solid #087c3b16; }
     .execution-parameter-condition { padding: 12px; border: 1px solid #e6ebe7; border-radius: 11px; background: #fafcfa; }
     .execution-parameter-editor-section-heading { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: #435047; font-size: 10px; font-weight: 750; }
     .execution-parameter-editor-section-heading span { display: grid; width: 19px; height: 19px; place-items: center; border-radius: 6px; background: #e8f4ec; color: #087c3b; font-size: 8px; font-weight: 800; }
-    .execution-parameter-expression { align-items: end; gap: 8px; }
-    .execution-parameter-expression > span, .execution-parameter-expression > strong { align-self: end; padding: 0 0 9px; color: #657168; font-size: 10px; }
+    .execution-parameter-expression { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px; }
+    .execution-parameter-expression > span, .execution-parameter-expression > strong { padding: 0; color: #657168; font-size: 10px; }
     .execution-parameter-expression > strong { color: #26332a; }
-    .execution-parameter-expression label { flex: 1 1 90px; min-width: 82px; gap: 5px; color: #78827b; font-size: 9px; font-weight: 650; }
+    .execution-parameter-expression-fields { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+    .execution-parameter-expression-fields label { min-width: 0; gap: 5px; color: #78827b; font-size: 9px; font-weight: 650; }
     .execution-parameter-effect { margin: 0; gap: 6px; color: #435047; font-size: 10px; font-weight: 700; }
     .execution-parameter-form .save-actions { gap: 7px; margin-top: 2px; }
     .execution-parameter-form .save-action { min-height: 40px; padding: 8px; font-size: 10px; }
@@ -524,7 +526,7 @@ shadow.innerHTML = `
             </div>
             <div class="execution-parameter-condition">
               <div class="execution-parameter-editor-section-heading"><span>02</span>O que acontece?</div>
-              <label class="execution-parameter-effect">Ação<select name="effect"><option value="block_both">🔒 Bloquear Compras e Vendas</option><option value="block_buy">🔒↑ Bloquear apenas Compras</option><option value="block_sell">🔒↓ Bloquear apenas Vendas</option></select></label>
+              <label class="execution-parameter-effect">Tipo de bloqueio<select name="effect"><option value="block_buy">↑ Compras</option><option value="block_sell">↓ Vendas</option><option value="block_both" selected>Ambos</option></select></label>
             </div>
             <div class="save-actions">
               <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
