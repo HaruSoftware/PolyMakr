@@ -35,6 +35,7 @@
         "scripts/content/execution-parameters.js",
         "scripts/content/execution-parameter-market-time.js",
         "scripts/content/execution-parameter-value-difference.js",
+        "scripts/content/execution-parameter-share-price.js",
         "scripts/content/execution.js",
         "scripts/content/simulation.js",
         "scripts/content/views.js",

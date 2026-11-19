@@ -795,6 +795,7 @@ async function editRule(rule) {
   showToast("Editando regra", executionStates[rule.id]?.status
     ? "A regra já foi executada; editar não a reativa."
     : "Edite os campos e salve para atualizar a regra.", "success");
+  selectCreateMode("rule");
   selectView("create");
 }
 
@@ -819,6 +820,7 @@ function useRuleTemplate(rule) {
     : "Abra o painel de negociação de um mercado antes de salvar.", "success");
   panel.classList.add("open");
   backdrop.classList.add("open");
+  selectCreateMode("rule");
   selectView("create");
 }
 

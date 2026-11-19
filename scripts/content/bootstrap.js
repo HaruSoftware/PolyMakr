@@ -47,8 +47,16 @@ shadow.innerHTML = `
       scrollbar-width: thin; scrollbar-color: #c5d0c8 transparent; }
     [data-panel="create"] form { max-width: 560px; margin: 0 auto; }
     .view.active { display: block; }
+    .view[data-panel="create"].active { display: flex; flex-direction: column; gap: 12px; }
     .view[data-panel="rules"].active { display: flex; flex-direction: column; }
     .view h2 { margin: 0 0 14px; font-size: 15px; }
+    .create-mode-tabs { display: flex; width: fit-content; max-width: 100%; flex: 0 0 auto; gap: 3px; padding: 4px; border: 1px solid #dfe6e0; border-radius: 10px; background: #f3f6f3; }
+    .create-mode-tab { min-width: 112px; padding: 7px 14px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #657168; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .create-mode-tab:hover { color: #435047; }
+    .create-mode-tab[aria-selected="true"] { border-color: #d3e4d7; background: #fff; color: #087c3b; box-shadow: 0 1px 2px #17211b0a; }
+    .create-mode-tab:focus-visible { outline: 2px solid #63a879; outline-offset: 2px; }
+    .create-mode-panel { min-width: 0; }
+    .create-mode-panel[hidden] { display: none !important; }
     .empty { color: #758078; font-size: 12px; }
     .analysis-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .analysis-heading h2 { margin-bottom: 4px; }
@@ -143,6 +151,9 @@ shadow.innerHTML = `
     .execution-parameter-card[aria-grabbed="true"] { opacity: .5; }
     .execution-parameter-identity { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 6px; }
     .execution-parameter-name { display: block; min-width: 0; overflow: hidden; color: #435047; font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .execution-parameter-outcome-badge { flex: 0 0 auto; padding: 2px 5px; border-radius: 5px; font-size: 8px; font-weight: 800; line-height: 1.2; }
+    .execution-parameter-outcome-badge.up { background: #e4f5ea; color: #087c3b; }
+    .execution-parameter-outcome-badge.down { background: #fde9e8; color: #a33b2e; }
     .execution-parameter-type-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 12px; }
     .execution-parameter-type-option { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid #dfe6e0; border-radius: 9px; background: #fff; color: #435047; cursor: pointer; font: inherit; text-align: left; }
     .execution-parameter-type-option[aria-pressed="true"] { border-color: #087c3b; background: #e8f4ec; }
@@ -176,6 +187,7 @@ shadow.innerHTML = `
     .execution-parameter-checkbox input { width: auto; margin: 0; }
     .execution-parameter-form [type="submit"] { min-height: 40px; }
     .execution-parameter-builder { display: grid; width: min(900px, 100%); min-height: 460px; grid-template-columns: minmax(230px, .82fr) minmax(0, 1.18fr); margin: 0 auto; overflow: hidden; border: 1px solid #e1e8e2; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #17211b0a; }
+    .rule-builder { min-height: 100%; flex: 1 0 auto; }
     .execution-parameter-flow { display: flex; min-width: 0; flex-direction: column; padding: 22px 18px; background: linear-gradient(155deg, #f3f8f4, #f8faf8 62%, #eef5f0); }
     .execution-parameter-flow-kicker { display: inline-flex; align-items: center; gap: 7px; color: #78827b; font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
     .execution-parameter-flow-kicker::before { width: 7px; height: 7px; border-radius: 50%; background: #087c3b; box-shadow: 0 0 0 3px #087c3b18; content: ""; }
@@ -227,6 +239,21 @@ shadow.innerHTML = `
     .execution-parameter-form .save-action.favorite:hover { background: #fff2df; }
     .execution-parameter-form .execution-parameter-cancel { padding: 7px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
     .execution-parameter-form [hidden] { display: none; }
+    .rule-builder .rule-form { width: 100%; max-width: none; margin: 0; gap: 10px; }
+    .rule-builder .rule-form > label:not(.execution-parameter-checkbox) { gap: 5px; color: #435047; font-size: 10px; font-weight: 700; }
+    .rule-builder .rule-form input:not([type="checkbox"]), .rule-builder .rule-form select { min-height: 36px; border-color: #dfe6e0; border-radius: 8px; background-color: #fbfcfb; font-size: 11px; }
+    .rule-builder .rule-form select { padding: 7px 24px 7px 8px; }
+    .rule-builder .rule-form .row { gap: 8px; }
+    .rule-builder .rule-form .row label { min-width: 0; gap: 5px; color: #78827b; font-size: 9px; font-weight: 650; }
+    .rule-builder .rule-form .execution-parameter-condition { padding: 10px; }
+    .rule-builder .rule-form .execution-parameter-editor-section-heading { margin-bottom: 8px; }
+    .rule-builder .rule-form .execution-parameter-condition + .execution-parameter-condition { margin-top: 0; }
+    .rule-builder .rule-form .market-outcomes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: none; }
+    .rule-builder .rule-form .outcome-choice { min-width: 0; }
+    .rule-builder .rule-form .execution-parameter-checkbox { padding: 2px 0; color: #59645d; font-size: 10px; }
+    .rule-builder .rule-form .save-actions { gap: 7px; }
+    .rule-builder .rule-form .save-action { min-height: 38px; padding: 8px; font-size: 10px; }
+    .rule-builder .rule-form .cancel-edit { padding: 7px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
     @media (max-width: 700px) {
       .execution-parameter-builder { grid-template-columns: minmax(0, 1fr); }
       .execution-parameter-flow { padding: 17px; }
@@ -434,9 +461,6 @@ shadow.innerHTML = `
         <button id="create-tab" class="tab" type="button" role="tab" data-view="create" aria-controls="panel-create" aria-label="Criar" aria-selected="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Criar</span>
         </button>
-        <button id="execution-parameters-tab" class="tab" type="button" role="tab" data-view="parameters" aria-controls="panel-parameters" aria-label="Parâmetros de Execução" aria-selected="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg><span>Parâmetros</span>
-        </button>
         <button id="rules-tab" class="tab" type="button" role="tab" data-view="rules" aria-controls="panel-rules" aria-label="Regras" aria-selected="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span>Regras</span>
         </button>
@@ -452,91 +476,133 @@ shadow.innerHTML = `
       </nav>
       <main class="views">
     <div id="panel-create" class="view active" data-panel="create" role="tabpanel" aria-labelledby="create-tab">
-      <h2 class="form-heading">Criar regra</h2>
-      <form>
-        <label>Resultado no mercado ativo</label>
-        <div class="market-outcomes" role="group" aria-label="Resultado no mercado ativo"></div>
-        <select name="quote" aria-hidden="true" tabindex="-1" hidden></select>
-        <div class="row">
-          <label>Lado da ordem<select name="side" required><option value="" selected disabled>Selecione</option><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
-          <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
+      <div class="create-mode-tabs" role="tablist" aria-label="Tipo de criação">
+        <button id="create-rule-mode-tab" class="create-mode-tab" type="button" role="tab" data-create-mode="rule" aria-controls="create-rule-mode-panel" aria-selected="true">Criar regra</button>
+        <button id="create-parameter-mode-tab" class="create-mode-tab" type="button" role="tab" data-create-mode="parameters" aria-controls="create-parameter-mode-panel" aria-selected="false">Parâmetros</button>
+      </div>
+      <section id="create-rule-mode-panel" class="create-mode-panel" data-create-mode-panel="rule" role="tabpanel" aria-labelledby="create-rule-mode-tab">
+        <div class="execution-parameter-builder rule-builder">
+          <section class="execution-parameter-flow" aria-label="Sobre as regras">
+            <div class="execution-parameter-flow-kicker">Automação do mercado</div>
+            <h2>Regras</h2>
+            <p class="execution-parameter-flow-intro">Uma regra acompanha o preço de Up ou Down e executa a ação escolhida quando seu gatilho é atingido.</p>
+            <div class="execution-parameter-flow-track">
+              <div class="execution-parameter-flow-node">
+                <span class="execution-parameter-flow-index">01</span>
+                <span class="execution-parameter-flow-copy"><small>SE</small><strong>O preço atingir a condição</strong></span>
+              </div>
+              <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
+              <div class="execution-parameter-flow-node">
+                <span class="execution-parameter-flow-index">02</span>
+                <span class="execution-parameter-flow-copy"><small>ENTÃO</small><strong>Notificar, simular ou enviar</strong></span>
+              </div>
+              <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
+              <div class="execution-parameter-flow-explanation">
+                <span class="execution-parameter-flow-index">i</span>
+                <div class="execution-parameter-flow-explanation-copy"><strong>Execução controlada</strong><p>As regras monitoram somente o mercado ativo e respeitam a fila e os parâmetros de execução selecionados.</p></div>
+              </div>
+            </div>
+          </section>
+          <section class="execution-parameter-editor" aria-label="Configuração da regra">
+            <div class="execution-parameter-editor-heading">
+              <div><small>CONFIGURAÇÃO</small><h2 class="form-heading">Criar regra</h2></div>
+              <span class="execution-parameter-editor-badge">SE / ENTÃO</span>
+            </div>
+            <form class="rule-form">
+              <div class="execution-parameter-condition">
+                <div class="execution-parameter-editor-section-heading"><span>01</span>Escolha o resultado</div>
+                <div class="market-outcomes" role="group" aria-label="Resultado no mercado ativo"></div>
+                <select name="quote" aria-hidden="true" tabindex="-1" hidden></select>
+              </div>
+              <div class="execution-parameter-condition">
+                <div class="execution-parameter-editor-section-heading"><span>02</span>Defina o gatilho</div>
+                <div class="row">
+                  <label>Lado da ordem<select name="side" required><option value="" selected disabled>Selecione</option><option value="buy">Comprar</option><option value="sell">Vender</option></select></label>
+                  <label>Condição<select name="trigger"><option value="reaches">Atingir o preço</option><option value="rises">Subir até o preço</option><option value="falls">Cair até o preço</option></select></label>
+                </div>
+                <div class="row">
+                  <label>Disparar em (¢)<input name="triggerCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
+                  <label>Preço limite (¢)<input name="orderLimitCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
+                </div>
+              </div>
+              <div class="execution-parameter-condition">
+                <div class="execution-parameter-editor-section-heading"><span>03</span>Configure a execução</div>
+                <div class="row">
+                  <label>Quantidade (shares)<input name="shares" type="number" min="1" step="1" placeholder="ex.: 5" required></label>
+                  <label>Expiração<select name="expiration"><option value="never">Never</option></select></label>
+                </div>
+                <label>Quando disparar<select name="mode">
+                  <option value="notify">Somente notificar</option>
+                  <option value="confirm">Avisar e pedir confirmação</option>
+                  <option value="paper">Simular ordem (carteira virtual)</option>
+                  <option value="auto_limit">Enviar ordem real (automação no Polymarket)</option>
+                </select></label>
+                <label>Ordem de execução<select name="queuePolicy">
+                  <option value="ordered">Respeitar a fila</option>
+                  <option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option>
+                </select></label>
+                <label class="execution-parameter-checkbox"><input name="honorExecutionParameters" type="checkbox" checked> Respeitar Parâmetros de Execução</label>
+              </div>
+              <div class="save-actions">
+                <button class="save-action save" type="submit" name="saveAction" value="save">Salvar regra</button>
+                <button class="save-action favorite" type="submit" name="saveAction" value="favorite" aria-label="Salvar e favoritar regra"><span class="star" aria-hidden="true">★</span> Favoritar</button>
+              </div>
+              <button class="cancel-edit" type="button" hidden>Cancelar edição</button>
+            </form>
+          </section>
         </div>
-        <div class="row">
-          <label>Disparar quando chegar a (¢)<input name="triggerCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
-          <label>Preço da ordem limite (¢)<input name="orderLimitCents" type="number" min="0.1" max="99.9" step="0.1" placeholder="ex.: 50" required></label>
+      </section>
+      <section id="create-parameter-mode-panel" class="create-mode-panel" data-create-mode-panel="parameters" role="tabpanel" aria-labelledby="create-parameter-mode-tab" hidden>
+        <div class="execution-parameter-builder">
+          <section class="execution-parameter-flow" aria-label="Fluxo do parâmetro">
+            <div class="execution-parameter-flow-kicker">Construtor de automação</div>
+            <h2>Parâmetros de Execução</h2>
+            <p class="execution-parameter-flow-intro">Monte uma condição para controlar quando suas regras podem ser executadas.</p>
+            <div class="execution-parameter-flow-track">
+              <div class="execution-parameter-flow-node">
+                <span class="execution-parameter-flow-index">01</span>
+                <span class="execution-parameter-flow-copy"><small>SE</small><strong>Escolha uma condição</strong></span>
+              </div>
+              <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
+              <div class="execution-parameter-type-panel">
+                <div class="execution-parameter-type-panel-heading">Tipo de parâmetro</div>
+                <div class="execution-parameter-type-options" role="group" aria-label="Tipo de parâmetro"></div>
+              </div>
+              <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
+              <div class="execution-parameter-flow-explanation">
+                <span class="execution-parameter-flow-index">02</span>
+                <div class="execution-parameter-flow-copy execution-parameter-flow-explanation-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
+                <span class="execution-parameter-flow-note-icon" aria-hidden="true">i</span>
+                <div class="execution-parameter-flow-note-text">A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
+              </div>
+            </div>
+          </section>
+          <section class="execution-parameter-editor" aria-label="Configuração do parâmetro">
+            <div class="execution-parameter-editor-heading">
+              <div><small>CONFIGURAÇÃO</small><h2 class="execution-parameter-form-heading">Criar parâmetro</h2></div>
+              <span class="execution-parameter-editor-badge">SE / ENTÃO</span>
+            </div>
+            <form class="execution-parameter-form">
+              <input name="type" type="hidden" value="market_time">
+              <label>Nome (opcional)<input name="name" maxlength="60" placeholder="Ex.: Evitar os últimos 30 segundos"></label>
+              <div class="execution-parameter-condition">
+                <div class="execution-parameter-editor-section-heading"><span>01</span>Defina a condição</div>
+                <div class="execution-parameter-type-fields"></div>
+              </div>
+              <div class="execution-parameter-condition">
+                <div class="execution-parameter-editor-section-heading"><span>02</span>O que acontece?</div>
+                <label class="execution-parameter-effect">Tipo de bloqueio<select name="effect"><option value="block_buy">↑ Compras</option><option value="block_sell">↓ Vendas</option><option value="block_both" selected>Ambos</option></select></label>
+              </div>
+              <div class="save-actions">
+                <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
+                <button class="save-action favorite" type="submit" name="parameterAction" value="favorite"><span class="star" aria-hidden="true">★</span> Salvar como favorito</button>
+              </div>
+              <button class="execution-parameter-cancel" type="button" hidden>Cancelar edição</button>
+            </form>
+          </section>
         </div>
-        <div class="row">
-          <label>Quantidade (shares)<input name="shares" type="number" min="1" step="1" placeholder="ex.: 5" required></label>
-          <label>Expiração<select name="expiration"><option value="never">Never</option></select></label>
-        </div>
-        <label>Quando disparar<select name="mode">
-          <option value="notify">Somente notificar</option>
-          <option value="confirm">Avisar e pedir confirmação</option>
-          <option value="paper">Simular ordem (carteira virtual)</option>
-          <option value="auto_limit">Enviar ordem real (automação no Polymarket)</option>
-        </select></label>
-        <label>Ordem de execução<select name="queuePolicy">
-          <option value="ordered">Respeitar a fila</option>
-          <option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option>
-        </select></label>
-        <label class="execution-parameter-checkbox"><input name="honorExecutionParameters" type="checkbox" checked> Respeitar Parâmetros de Execução</label>
-        <div class="save-actions">
-          <button class="save-action save" type="submit" name="saveAction" value="save">Salvar regra</button>
-          <button class="save-action favorite" type="submit" name="saveAction" value="favorite" aria-label="Salvar e favoritar regra"><span class="star" aria-hidden="true">★</span> Favoritar</button>
-        </div>
-        <button class="cancel-edit" type="button" hidden>Cancelar edição</button>
-      </form>
-    </div>
-    <div id="panel-parameters" class="view" data-panel="parameters" role="tabpanel" aria-labelledby="execution-parameters-tab" hidden>
-      <div class="execution-parameter-builder">
-        <section class="execution-parameter-flow" aria-label="Fluxo do parâmetro">
-          <div class="execution-parameter-flow-kicker">Construtor de automação</div>
-          <h2>Parâmetros de Execução</h2>
-          <p class="execution-parameter-flow-intro">Monte uma condição para controlar quando suas regras podem ser executadas.</p>
-          <div class="execution-parameter-flow-track">
-            <div class="execution-parameter-flow-node">
-              <span class="execution-parameter-flow-index">01</span>
-              <span class="execution-parameter-flow-copy"><small>SE</small><strong>Escolha uma condição</strong></span>
-            </div>
-            <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
-            <div class="execution-parameter-type-panel">
-              <div class="execution-parameter-type-panel-heading">Tipo de parâmetro</div>
-              <div class="execution-parameter-type-options" role="group" aria-label="Tipo de parâmetro"></div>
-            </div>
-            <div class="execution-parameter-flow-connector" aria-hidden="true"></div>
-            <div class="execution-parameter-flow-explanation">
-              <span class="execution-parameter-flow-index">02</span>
-              <div class="execution-parameter-flow-copy execution-parameter-flow-explanation-copy"><strong>Defina a ação à direita</strong><p>Escolha se esta condição deve bloquear as regras ou não interferir na execução.</p></div>
-              <span class="execution-parameter-flow-note-icon" aria-hidden="true">i</span>
-              <div class="execution-parameter-flow-note-text">A condição é verificada no mercado ativo. O efeito escolhido vale enquanto ela for satisfeita.</div>
-            </div>
-          </div>
-        </section>
-        <section class="execution-parameter-editor" aria-label="Configuração do parâmetro">
-          <div class="execution-parameter-editor-heading">
-            <div><small>CONFIGURAÇÃO</small><h2 class="execution-parameter-form-heading">Criar parâmetro</h2></div>
-            <span class="execution-parameter-editor-badge">SE / ENTÃO</span>
-          </div>
-          <form class="execution-parameter-form">
-            <input name="type" type="hidden" value="market_time">
-            <label>Nome (opcional)<input name="name" maxlength="60" placeholder="Ex.: Evitar os últimos 30 segundos"></label>
-            <div class="execution-parameter-condition">
-              <div class="execution-parameter-editor-section-heading"><span>01</span>Defina a condição</div>
-              <div class="execution-parameter-type-fields"></div>
-            </div>
-            <div class="execution-parameter-condition">
-              <div class="execution-parameter-editor-section-heading"><span>02</span>O que acontece?</div>
-              <label class="execution-parameter-effect">Tipo de bloqueio<select name="effect"><option value="block_buy">↑ Compras</option><option value="block_sell">↓ Vendas</option><option value="block_both" selected>Ambos</option></select></label>
-            </div>
-            <div class="save-actions">
-              <button class="save-action save" type="submit" name="parameterAction" value="active">Adicionar aos parâmetros</button>
-              <button class="save-action favorite" type="submit" name="parameterAction" value="favorite"><span class="star" aria-hidden="true">★</span> Salvar como favorito</button>
-            </div>
-            <button class="execution-parameter-cancel" type="button" hidden>Cancelar edição</button>
-          </form>
         </section>
       </div>
-    </div>
     <div id="panel-rules" class="view" data-panel="rules" role="tabpanel" aria-labelledby="rules-tab" hidden>
       <div class="section-heading"><h2>Regras</h2><span class="count-chip rules-count">0</span></div>
       <div class="board" aria-label="Quadro de regras">
@@ -799,7 +865,26 @@ shadow.querySelectorAll(".tab").forEach((tab) => {
 setupExecutionParameterUI();
 shadow.querySelector(".execution-parameter-create").addEventListener("click", () => {
   resetExecutionParameterForm();
-  selectView("parameters");
+  selectView("create");
+  selectCreateMode("parameters");
+});
+shadow.querySelectorAll("[data-create-mode]").forEach((tab, index, tabs) => {
+  tab.addEventListener("click", () => selectCreateMode(tab.dataset.createMode));
+  tab.addEventListener("keydown", (event) => {
+    const keyDirections = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      const target = event.key === "Home" ? tabs[0] : tabs[tabs.length - 1];
+      selectCreateMode(target.dataset.createMode);
+      target.focus();
+      return;
+    }
+    if (!keyDirections[event.key]) return;
+    event.preventDefault();
+    const nextIndex = (index + keyDirections[event.key] + tabs.length) % tabs.length;
+    selectCreateMode(tabs[nextIndex].dataset.createMode);
+    tabs[nextIndex].focus();
+  });
 });
 shadow.querySelectorAll(".simulation-tab").forEach((tab, index, tabs) => {
   tab.addEventListener("click", () => selectSimulationWindow(tab.dataset.simulationTab));

@@ -7,6 +7,21 @@ let editingExecutionParameterId = null;
 let editingExecutionParameterFavoriteId = null;
 let selectedExecutionParameterType = "market_time";
 
+function selectCreateMode(mode) {
+  const tabs = [...shadow.querySelectorAll("[data-create-mode]")];
+  if (!tabs.some((tab) => tab.dataset.createMode === mode)) {
+    throw new Error(`O modo de criação "${mode}" não está disponível.`);
+  }
+  for (const tab of tabs) {
+    const selected = tab.dataset.createMode === mode;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of shadow.querySelectorAll("[data-create-mode-panel]")) {
+    panel.hidden = panel.dataset.createModePanel !== mode;
+  }
+}
+
 function registerExecutionParameterType(type, definition) {
   if (typeof type !== "string" || !type || !definition
     || typeof definition.normalize !== "function"
@@ -218,6 +233,12 @@ function compactExecutionParameterValue(parameter) {
     }).format(parameter.threshold);
     return `${value}${parameter.unit === "percentage" ? "%" : "$"}`;
   }
+  if (type === "share_price") {
+    const value = new Intl.NumberFormat("pt-BR", {
+      maximumFractionDigits: 1
+    }).format(parameter.threshold);
+    return `${parameter.comparison} ${value}¢`;
+  }
   return parameter.name;
 }
 
@@ -229,6 +250,7 @@ function currentExecutionParameterValue(parameter, result) {
   if (type === "value_difference" && result.state !== "unknown" && result.detail) {
     return result.detail;
   }
+  if (type === "share_price") return compactExecutionParameterValue(parameter);
   return "—";
 }
 
@@ -404,6 +426,14 @@ function createExecutionParameterCard(parameter, isFavorite) {
 
   const identity = document.createElement("div");
   identity.className = "execution-parameter-identity";
+  if ((parameter.type || "market_time") === "share_price") {
+    const outcome = document.createElement("span");
+    const isUp = parameter.outcome === "Up";
+    outcome.className = `execution-parameter-outcome-badge ${isUp ? "up" : "down"}`;
+    outcome.textContent = isUp ? "UP" : "DOWN";
+    outcome.setAttribute("aria-label", parameter.outcome);
+    identity.append(outcome);
+  }
   const name = document.createElement("strong");
   name.className = "execution-parameter-name";
   const result = !isFavorite ? executionParameterStatus(parameter) : null;
@@ -659,7 +689,8 @@ function editExecutionParameter(parameter, isFavorite) {
   renderExecutionParameterTypeFields(parameter);
   form.elements.effect.value = parameter.effect || "block_both";
   updateExecutionParameterFormMode();
-  selectView("parameters");
+  selectView("create");
+  selectCreateMode("parameters");
   form.elements.name.focus();
 }
 
