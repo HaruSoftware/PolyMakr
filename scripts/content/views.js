@@ -10,7 +10,7 @@ function renderQuotes() {
 
   if (quotes.length === 0 && !editingRule) {
     quoteSelect.add(new Option("Aguardando mercado…", ""));
-    quoteOptions.innerHTML = '<p class="empty">Abra o painel de negociação de um mercado para selecionar Up/Down.</p>';
+    quoteOptions.innerHTML = '<p class="empty">Abra um mercado para selecionar Up/Down.</p>';
     return;
   }
 

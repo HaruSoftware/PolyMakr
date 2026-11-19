@@ -35,7 +35,7 @@ Os scripts de conteúdo são JavaScript clássico, carregados na ordem declarada
 
 ## Análise do mercado
 
-A aba **Análise** mostra o preço de Down como probabilidade implícita do resultado (uma referência de “medo”, não um indicador psicológico), o movimento e a tendência da cotação Up e sua amplitude. Esses valores e o gráfico vêm das cotações Up/Down observadas na página durante a sessão atual; não há histórico anterior nem dados de outros mercados. Spread, profundidade e desequilíbrio são calculados a partir dos livros públicos dos tokens Up/Down deste mercado. Os livros são atualizados a cada 15 segundos enquanto a aba estiver aberta.
+A aba **Análise** mostra o preço de Down como probabilidade implícita do resultado (uma referência de “medo”, não um indicador psicológico), o movimento e a tendência da cotação Up e sua amplitude. Esses valores e o gráfico vêm das cotações Up/Down observadas na página durante a sessão atual; o gráfico usa uma janela móvel fixa de cinco minutos e não há histórico anterior nem dados de outros mercados. Spread, profundidade e desequilíbrio são calculados a partir dos livros públicos dos tokens Up/Down deste mercado. Os livros são atualizados a cada 15 segundos enquanto a aba estiver aberta.
 
 ## Regras
 

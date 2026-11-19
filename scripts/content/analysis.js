@@ -107,8 +107,9 @@ function renderMarketAnalysis() {
   const movementValue = shadow.querySelector('[data-analysis-value="movement"]');
   const trendValue = shadow.querySelector('[data-analysis-value="trend"]');
   const rangeValue = shadow.querySelector('[data-analysis-value="range"]');
+  const now = Date.now();
   const windowSamples = marketAnalysisHistory.filter((sample) =>
-    sample.at >= Date.now() - MARKET_ANALYSIS_WINDOW
+    sample.at >= now - MARKET_ANALYSIS_WINDOW
   );
   const first = windowSamples[0];
   const last = windowSamples[windowSamples.length - 1];
@@ -159,13 +160,13 @@ function renderMarketAnalysis() {
         ? `Cotações observadas na página · livro atualizado às ${new Date(marketAnalysisBookFetchedAt).toLocaleTimeString("pt-BR")}.`
         : "Cotações observadas na página · aguardando atualização do livro.";
   status.classList.toggle("error", marketAnalysisStatusIsError);
-  renderMarketAnalysisChart(windowSamples);
+  renderMarketAnalysisChart(windowSamples, now);
   shadow.querySelector(".analysis-sample-count").textContent =
     `${windowSamples.length} ${windowSamples.length === 1 ? "observação" : "observações"} na janela`;
   renderMarketAnalysisBooks();
 }
 
-function renderMarketAnalysisChart(samples) {
+function renderMarketAnalysisChart(samples, now) {
   const chart = shadow.querySelector(".analysis-chart");
   const upPath = chart.querySelector(".analysis-chart-up");
   const downPath = chart.querySelector(".analysis-chart-down");
@@ -175,10 +176,9 @@ function renderMarketAnalysisChart(samples) {
     return;
   }
 
-  const firstAt = samples[0].at;
-  const duration = Math.max(samples[samples.length - 1].at - firstAt, 1);
+  const windowStart = now - MARKET_ANALYSIS_WINDOW;
   const makePath = (outcome) => samples.map((sample, index) => {
-    const x = 40 + ((sample.at - firstAt) / duration) * 550;
+    const x = 40 + ((sample.at - windowStart) / MARKET_ANALYSIS_WINDOW) * 550;
     const y = 150 - (sample[outcome] / 100) * 130;
     return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
   }).join(" ");

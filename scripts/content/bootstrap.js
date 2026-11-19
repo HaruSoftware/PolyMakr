@@ -76,6 +76,7 @@ shadow.innerHTML = `
     .analysis-section h3 { margin: 0 0 8px; font-size: 12px; }
     .analysis-chart { display: block; width: 100%; height: auto; min-height: 130px; overflow: visible; }
     .analysis-chart-grid { stroke: #edf0ed; stroke-width: 1; }
+    .analysis-chart-time { fill: #78827b; font-size: 9px; }
     .analysis-chart-up, .analysis-chart-down { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
     .analysis-chart-up { stroke: #07833b; }
     .analysis-chart-down { stroke: #c4312b; }
@@ -187,7 +188,7 @@ shadow.innerHTML = `
     .execution-parameter-checkbox input { width: auto; margin: 0; }
     .execution-parameter-form [type="submit"] { min-height: 40px; }
     .execution-parameter-builder { display: grid; width: min(900px, 100%); min-height: 460px; grid-template-columns: minmax(230px, .82fr) minmax(0, 1.18fr); margin: 0 auto; overflow: hidden; border: 1px solid #e1e8e2; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #17211b0a; }
-    .rule-builder { min-height: 100%; flex: 1 0 auto; }
+    .rule-builder { min-height: 0; flex: 1 0 auto; }
     .execution-parameter-flow { display: flex; min-width: 0; flex-direction: column; padding: 22px 18px; background: linear-gradient(155deg, #f3f8f4, #f8faf8 62%, #eef5f0); }
     .execution-parameter-flow-kicker { display: inline-flex; align-items: center; gap: 7px; color: #78827b; font-size: 9px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
     .execution-parameter-flow-kicker::before { width: 7px; height: 7px; border-radius: 50%; background: #087c3b; box-shadow: 0 0 0 3px #087c3b18; content: ""; }
@@ -239,20 +240,31 @@ shadow.innerHTML = `
     .execution-parameter-form .save-action.favorite:hover { background: #fff2df; }
     .execution-parameter-form .execution-parameter-cancel { padding: 7px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
     .execution-parameter-form [hidden] { display: none; }
-    .rule-builder .rule-form { width: 100%; max-width: none; margin: 0; gap: 10px; }
-    .rule-builder .rule-form > label:not(.execution-parameter-checkbox) { gap: 5px; color: #435047; font-size: 10px; font-weight: 700; }
-    .rule-builder .rule-form input:not([type="checkbox"]), .rule-builder .rule-form select { min-height: 36px; border-color: #dfe6e0; border-radius: 8px; background-color: #fbfcfb; font-size: 11px; }
-    .rule-builder .rule-form select { padding: 7px 24px 7px 8px; }
-    .rule-builder .rule-form .row { gap: 8px; }
-    .rule-builder .rule-form .row label { min-width: 0; gap: 5px; color: #78827b; font-size: 9px; font-weight: 650; }
-    .rule-builder .rule-form .execution-parameter-condition { padding: 10px; }
-    .rule-builder .rule-form .execution-parameter-editor-section-heading { margin-bottom: 8px; }
+    .rule-builder .execution-parameter-editor { padding: 14px; }
+    .rule-builder .execution-parameter-editor-heading { margin-bottom: 9px; }
+    .rule-builder .rule-form { width: 100%; max-width: none; margin: 0; gap: 6px; }
+    .rule-builder .rule-form > label:not(.execution-parameter-checkbox) { gap: 3px; color: #435047; font-size: 9px; font-weight: 700; }
+    .rule-builder .rule-form input:not([type="checkbox"]), .rule-builder .rule-form select { min-height: 31px; border-color: #dfe6e0; border-radius: 7px; background-color: #fbfcfb; font-size: 10px; }
+    .rule-builder .rule-form select { padding: 5px 22px 5px 7px; }
+    .rule-builder .rule-form .row { gap: 6px; }
+    .rule-builder .rule-form .row label { min-width: 0; gap: 3px; color: #78827b; font-size: 8px; font-weight: 650; }
+    .rule-builder .rule-form .execution-parameter-condition { padding: 7px; }
+    .rule-builder .rule-form .execution-parameter-editor-section-heading { margin-bottom: 5px; }
     .rule-builder .rule-form .execution-parameter-condition + .execution-parameter-condition { margin-top: 0; }
-    .rule-builder .rule-form .market-outcomes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; max-height: none; }
+    .rule-builder .rule-form > .execution-parameter-condition:first-child { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; gap: 4px 8px; }
+    .rule-builder .rule-form > .execution-parameter-condition:first-child .execution-parameter-editor-section-heading { margin: 0; }
+    .rule-builder .rule-form .market-outcomes { display: flex; min-width: 0; justify-content: flex-end; gap: 0; max-height: none; overflow: hidden; }
+    .rule-builder .rule-form .market-outcomes > .empty { max-width: 180px; margin: 0; color: #78827b; font-size: 8px; line-height: 1.3; text-align: right; }
+    .rule-builder .rule-form .market-outcomes .market-group { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 6px; }
+    .rule-builder .rule-form .market-outcomes .market-title { flex: 1 1 auto; min-width: 0; font-size: 8px; }
+    .rule-builder .rule-form .market-outcomes .outcome-options { width: min(150px, 58%); flex: 0 1 150px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
     .rule-builder .rule-form .outcome-choice { min-width: 0; }
-    .rule-builder .rule-form .execution-parameter-checkbox { padding: 2px 0; color: #59645d; font-size: 10px; }
+    .rule-builder .rule-form .outcome-choice { min-height: 30px; padding: 4px 6px; font-size: 10px; }
+    .rule-builder .rule-form .execution-parameter-checkbox { padding: 1px 0; color: #59645d; font-size: 9px; }
+    .rule-builder .rule-form .execution-parameter-checkbox input { width: 13px; height: 13px; }
+    .rule-builder .rule-form .execution-options-row { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
     .rule-builder .rule-form .save-actions { gap: 7px; }
-    .rule-builder .rule-form .save-action { min-height: 38px; padding: 8px; font-size: 10px; }
+    .rule-builder .rule-form .save-action { min-height: 34px; padding: 6px; font-size: 9px; }
     .rule-builder .rule-form .cancel-edit { padding: 7px; border: 1px solid #e1e6e2; border-radius: 7px; background: #fff; color: #59645d; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
     @media (max-width: 700px) {
       .execution-parameter-builder { grid-template-columns: minmax(0, 1fr); }
@@ -531,16 +543,18 @@ shadow.innerHTML = `
                   <label>Quantidade (shares)<input name="shares" type="number" min="1" step="1" placeholder="ex.: 5" required></label>
                   <label>Expiração<select name="expiration"><option value="never">Never</option></select></label>
                 </div>
-                <label>Quando disparar<select name="mode">
-                  <option value="notify">Somente notificar</option>
-                  <option value="confirm">Avisar e pedir confirmação</option>
-                  <option value="paper">Simular ordem (carteira virtual)</option>
-                  <option value="auto_limit">Enviar ordem real (automação no Polymarket)</option>
-                </select></label>
-                <label>Ordem de execução<select name="queuePolicy">
-                  <option value="ordered">Respeitar a fila</option>
-                  <option value="independent">Executar ao atingir o gatilho, mesmo fora da ordem</option>
-                </select></label>
+                <div class="row execution-options-row">
+                  <label>Ação<select name="mode">
+                    <option value="notify">Somente notificar</option>
+                    <option value="confirm">Pedir confirmação</option>
+                    <option value="paper">Simular ordem</option>
+                    <option value="auto_limit">Enviar ordem real</option>
+                  </select></label>
+                  <label>Fila<select name="queuePolicy">
+                    <option value="ordered">Seguir fila</option>
+                    <option value="independent">Independente da fila</option>
+                  </select></label>
+                </div>
                 <label class="execution-parameter-checkbox"><input name="honorExecutionParameters" type="checkbox" checked> Respeitar Parâmetros de Execução</label>
               </div>
               <div class="save-actions">
@@ -653,9 +667,12 @@ shadow.innerHTML = `
       </div>
       <section class="analysis-section">
         <h3>Cotações observadas</h3>
-        <svg class="analysis-chart" viewBox="0 0 600 180" role="img" aria-label="Histórico de cotações Up e Down observado nesta sessão">
-          <path class="analysis-chart-grid" d="M40 20H590M40 85H590M40 150H590"/>
+        <svg class="analysis-chart" viewBox="0 0 600 180" role="img" aria-label="Histórico de cotações Up e Down nos últimos cinco minutos">
+          <path class="analysis-chart-grid" d="M40 20H590M40 85H590M40 150H590M40 20V150M315 20V150M590 20V150"/>
           <path class="analysis-chart-up"></path><path class="analysis-chart-down"></path>
+          <text class="analysis-chart-time" x="40" y="170">-5 min</text>
+          <text class="analysis-chart-time" x="315" y="170" text-anchor="middle">-2:30</text>
+          <text class="analysis-chart-time" x="590" y="170" text-anchor="end">Agora</text>
         </svg>
         <div class="analysis-legend"><span><i></i>Up</span><span><i class="down-dot"></i>Down</span><span class="analysis-sample-count">0 observações</span></div>
         <p class="analysis-note">O gráfico usa apenas observações feitas enquanto esta página está aberta; não representa histórico anterior nem previsão.</p>
