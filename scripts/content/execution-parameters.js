@@ -221,6 +221,17 @@ function compactExecutionParameterValue(parameter) {
   return parameter.name;
 }
 
+function currentExecutionParameterValue(parameter, result) {
+  const type = parameter.type || "market_time";
+  if (type === "market_time" && Number.isFinite(result.remainingSeconds)) {
+    return `${result.remainingSeconds}s`;
+  }
+  if (type === "value_difference" && result.state !== "unknown" && result.detail) {
+    return result.detail;
+  }
+  return "—";
+}
+
 function executionParameterStatus(parameter) {
   if (!["block", "block_buy", "block_sell", "block_both"].includes(parameter.effect)) {
     return { state: "released", label: "Liberado", title: "Este parâmetro não bloqueia regras." };
@@ -345,9 +356,12 @@ function renderExecutionParameterStatuses() {
     const dot = card.querySelector(".execution-parameter-dot");
     if (!parameter || !dot) continue;
     const result = executionParameterStatus(parameter);
+    const value = card.querySelector(".execution-parameter-name");
+    if (value) value.textContent = currentExecutionParameterValue(parameter, result);
     dot.className = `execution-parameter-dot ${result.state}`;
     dot.setAttribute("aria-label", result.label);
     dot.title = result.title;
+    if (value) value.title = result.title || `${parameter.name} · ${executionParameterDescription(parameter)}`;
   }
   renderExecutionParameterSummary();
 }
@@ -392,7 +406,10 @@ function createExecutionParameterCard(parameter, isFavorite) {
   identity.className = "execution-parameter-identity";
   const name = document.createElement("strong");
   name.className = "execution-parameter-name";
-  const value = compactExecutionParameterValue(parameter);
+  const result = !isFavorite ? executionParameterStatus(parameter) : null;
+  const value = isFavorite
+    ? compactExecutionParameterValue(parameter)
+    : currentExecutionParameterValue(parameter, result);
   name.textContent = isFavorite && ["<=", ">="].includes(parameter.comparison)
     ? `${parameter.comparison} ${value}`
     : value;
@@ -405,7 +422,6 @@ function createExecutionParameterCard(parameter, isFavorite) {
 
   const status = document.createElement("span");
   if (!isFavorite) {
-    const result = executionParameterStatus(parameter);
     status.className = `execution-parameter-dot ${result.state}`;
     status.setAttribute("aria-label", result.label);
     status.title = result.title;
